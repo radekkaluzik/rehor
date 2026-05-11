@@ -157,6 +157,44 @@ spec:
         workspace: workspace
       - name: basic-auth
         workspace: git-auth
+    - name: test-post-pr-skill
+      runAfter:
+      - clone-repository
+      taskSpec:
+        workspaces:
+        - name: source
+        steps:
+        - name: run-tests
+          image: python:3.12-slim
+          workingDir: $(workspaces.source.path)
+          env:
+          - name: HOME
+            value: /tmp/test-home
+          - name: UV_CACHE_DIR
+            value: /tmp/uv-cache
+          script: |
+            #!/bin/bash
+            set -e
+
+            echo "Setting up test environment..."
+            mkdir -p $HOME $UV_CACHE_DIR
+
+            echo "Installing uv..."
+            pip install --no-cache-dir uv
+
+            echo "Running post-pr skill tests..."
+            cd .claude/skills/post-pr
+
+            echo "Installing dependencies..."
+            uv sync --extra dev
+
+            echo "Running pytest..."
+            uv run pytest -v --tb=short
+
+            echo "Tests completed successfully"
+      workspaces:
+      - name: source
+        workspace: workspace
     - name: prefetch-dependencies
       params:
       - name: input
