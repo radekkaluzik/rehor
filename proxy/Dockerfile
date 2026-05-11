@@ -45,7 +45,6 @@ ENV HOME=/tmp
 EXPOSE 3128
 EXPOSE 8443
 EXPOSE 8444
-EXPOSE 8445
 USER squid
 
 CMD ["/usr/local/bin/start.sh"]
