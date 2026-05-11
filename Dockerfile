@@ -149,6 +149,12 @@ COPY config.json project-repos.json CLAUDE.md .mcp.json entrypoint.sh ./
 COPY .claude/ .claude/
 COPY personas/ personas/
 
+# Run post-pr skill tests during build (validates skill before image is finalized)
+RUN cd .claude/skills/post-pr \
+    && uv sync --frozen --all-extras \
+    && uv run pytest -v --tb=short \
+    && echo "Post-PR skill tests passed!"
+
 ENV HOME=/home/botuser
 USER botuser
 
