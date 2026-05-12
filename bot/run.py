@@ -3,6 +3,7 @@
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import shutil
@@ -107,7 +108,7 @@ def setup_logging() -> None:
 REMOTE_CONFIG_DIR = DATA_DIR / "remote-config"
 
 
-def sync_config_repo(script_dir: Path) -> Path | None:
+def sync_config_repo() -> Path | None:
     """Clone or pull BOT_CONFIG_REPO. Returns agent config dir or None."""
     logger = logging.getLogger(__name__)
     repo_url = os.environ.get("BOT_CONFIG_REPO")
@@ -117,16 +118,27 @@ def sync_config_repo(script_dir: Path) -> Path | None:
     config_dir = REMOTE_CONFIG_DIR
     try:
         if (config_dir / ".git").exists():
-            subprocess.run(
+            r = subprocess.run(
                 ["git", "-C", str(config_dir), "pull", "--ff-only"],
                 capture_output=True, timeout=30, check=False,
             )
+            if r.returncode != 0:
+                logger.warning(
+                    "git pull failed (rc=%d): %s",
+                    r.returncode, r.stderr.decode().strip(),
+                )
         else:
             config_dir.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.run(
+            r = subprocess.run(
                 ["git", "clone", "--depth", "1", repo_url, str(config_dir)],
                 capture_output=True, timeout=60, check=False,
             )
+            if r.returncode != 0:
+                logger.warning(
+                    "git clone failed (rc=%d): %s",
+                    r.returncode, r.stderr.decode().strip(),
+                )
+                return None
     except subprocess.TimeoutExpired:
         logger.warning("Config repo sync timed out — using built-in config")
         return None
@@ -168,20 +180,20 @@ def apply_remote_config(script_dir: Path, agent_dir: Path) -> None:
 
     remote_mcp = agent_dir / "mcp.json"
     if remote_mcp.is_file():
-        import json
-        bot_mcp_path = script_dir / "bot" / "mcp.json"
+        merged_path = DATA_DIR / "merged-mcp.json"
         try:
-            with open(bot_mcp_path) as f:
+            with open(script_dir / "bot" / "mcp.json") as f:
                 built_in = json.load(f)
             with open(remote_mcp) as f:
                 custom = json.load(f)
             for name, cfg in custom.get("mcpServers", {}).items():
                 if name not in built_in.get("mcpServers", {}):
                     built_in.setdefault("mcpServers", {})[name] = cfg
-            with open(bot_mcp_path, "w") as f:
-                json.dump(built_in, f, indent=2)
-                f.write("\n")
-            logger.info("Merged remote MCP servers")
+            new_content = json.dumps(built_in, indent=2) + "\n"
+            existing = merged_path.read_text() if merged_path.exists() else ""
+            if new_content != existing:
+                merged_path.write_text(new_content)
+                logger.info("Merged remote MCP servers → %s", merged_path)
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Failed to merge remote MCP config: %s", exc)
 
@@ -294,7 +306,7 @@ def main() -> None:
 
     try:
         while True:
-            remote_agent_dir = sync_config_repo(SCRIPT_DIR)
+            remote_agent_dir = sync_config_repo()
             if remote_agent_dir:
                 apply_remote_config(SCRIPT_DIR, remote_agent_dir)
 
