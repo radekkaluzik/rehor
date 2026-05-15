@@ -13,10 +13,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-SLEEP_FILE = Path(__file__).resolve().parent.parent.parent.parent / "data" / "cycle-sleep.json"
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from jira_mcp import jira_call
+from paths import SLEEP_FILE
 
 MEMORY_URL = os.environ.get("BOT_MEMORY_URL", "http://localhost:8080").rstrip("/mcp").rstrip("/")
 PROJECT_REPOS = Path(__file__).resolve().parent.parent.parent.parent / "project-repos.json"
