@@ -31,7 +31,7 @@ The script executes 8 operations in sequence:
 2. **get_transitions** - Get available transitions via jira_get_transitions
 3. **assign_ticket** - Assign ticket via jira_update_issue
 4. **transition_to_in_progress** - Move to "In Progress" via jira_transition_issue
-5. **resolve_board** - Determine board from labels via jira_get_issue
+5. **resolve_board** - Determine board from BOT_BOARD_ID or BOT_BOARD_NAME env var
 6. **get_active_sprint** - Get active sprint via jira_get_sprints_from_board
 7. **add_to_sprint** - Add to sprint via jira_add_issues_to_sprint
 8. **task_add** - Track in memory server
@@ -49,9 +49,9 @@ export JIRA_MCP_URL=http://proxy:8090
 # Memory Server (required)
 export BOT_MEMORY_URL=https://memory-server.example.com
 
-# Board Configuration (optional, has defaults)
-export PLATFORM_UI_BOARD_ID=9297
-export DEFAULT_BOARD_ID=8070
+# Board Configuration (one of these required)
+export BOT_BOARD_ID=9297                          # Direct board ID (skips lookup)
+export BOT_BOARD_NAME="Platform Experience UI"    # Lookup board by name via Jira
 ```
 
 ## Authentication
@@ -62,9 +62,10 @@ Memory server operations use direct HTTP (POST /tasks).
 
 ## Board Resolution
 
-Determines board based on ticket labels:
-- `platform-experience-ui` label → Board 9297 (Platform Experience UI)
-- Otherwise → Board 8070 (default)
+Resolves board from environment variables (same as new-work skill):
+- `BOT_BOARD_ID` set → use directly (fast path, no API call)
+- `BOT_BOARD_NAME` set → lookup via `jira_get_agile_boards`
+- Neither set → fail with error
 
 ## Error Handling
 

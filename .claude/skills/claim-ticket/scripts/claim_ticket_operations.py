@@ -29,12 +29,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from jira_mcp import jira_call
 
-from .constants import (
-    DEFAULT_BOARD_ID,
-    LABEL_PLATFORM_UI,
-    PLATFORM_UI_BOARD_ID,
-    TRANSITION_IN_PROGRESS,
-)
+from .constants import TRANSITION_IN_PROGRESS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -77,8 +72,6 @@ class ClaimTicketOperations:
     def __init__(
         self,
         memory_url: str,
-        platform_ui_board_id: int = PLATFORM_UI_BOARD_ID,
-        default_board_id: int = DEFAULT_BOARD_ID,
         dry_run: bool = False,
     ):
         """
@@ -86,19 +79,15 @@ class ClaimTicketOperations:
 
         Args:
             memory_url: Memory server base URL
-            platform_ui_board_id: Board ID for platform-experience-ui tickets
-            default_board_id: Default board ID
             dry_run: If True, log actions without executing them
         """
         self.memory_url = memory_url.rstrip("/")
-        self.platform_ui_board_id = platform_ui_board_id
-        self.default_board_id = default_board_id
         self.dry_run = dry_run
 
         # Workflow state
         self.bot_account_id: Optional[str] = None
         self.transition_id: Optional[str] = None
-        self.board_id: Optional[int] = None
+        self.board_id: Optional[str] = None
         self.sprint_id: Optional[int] = None
 
     def get_bot_account_id(self) -> OperationResult:
@@ -370,22 +359,21 @@ class ClaimTicketOperations:
 
     def resolve_board(self, jira_key: str) -> OperationResult:
         """
-        Resolve correct board based on ticket labels via jira_get_issue.
-
-        Logic:
-        - If ticket has 'platform-experience-ui' label: use platform_ui_board_id (9297)
-        - Otherwise: use default_board_id (8070)
+        Resolve board from BOT_BOARD_ID or BOT_BOARD_NAME environment variables.
 
         Args:
-            jira_key: JIRA ticket key (e.g., RHCLOUD-12345)
+            jira_key: JIRA ticket key (used for logging only)
 
         Returns:
             OperationResult with board ID
         """
         logger.info(f"Resolving board for {jira_key}...")
 
+        bot_board_id = os.environ.get("BOT_BOARD_ID", "")
+        bot_board_name = os.environ.get("BOT_BOARD_NAME", "")
+
         if self.dry_run:
-            self.board_id = self.default_board_id
+            self.board_id = bot_board_id or "dry-run-board"
             logger.info(f"[DRY RUN] Would resolve board for {jira_key}")
             return OperationResult(
                 operation="resolve_board",
@@ -395,9 +383,32 @@ class ClaimTicketOperations:
             )
 
         try:
-            data = jira_call("jira_get_issue", {"issue_key": jira_key})
-            if not data:
-                error_msg = "jira_get_issue returned None"
+            if bot_board_id:
+                self.board_id = bot_board_id
+                logger.info(f"Using BOT_BOARD_ID: {self.board_id}")
+            elif bot_board_name:
+                data = jira_call("jira_get_agile_boards", {"board_name": bot_board_name, "limit": 1})
+                if not data:
+                    error_msg = f"No board found matching name '{bot_board_name}'"
+                    logger.error(error_msg)
+                    return OperationResult(
+                        operation="resolve_board",
+                        status=OperationStatus.FAILED,
+                        message=error_msg,
+                    )
+                boards = data if isinstance(data, list) else data.get("values", [])
+                if not boards:
+                    error_msg = f"No board found matching name '{bot_board_name}'"
+                    logger.error(error_msg)
+                    return OperationResult(
+                        operation="resolve_board",
+                        status=OperationStatus.FAILED,
+                        message=error_msg,
+                    )
+                self.board_id = str(boards[0]["id"])
+                logger.info(f"Resolved board '{bot_board_name}' → {self.board_id}")
+            else:
+                error_msg = "Neither BOT_BOARD_ID nor BOT_BOARD_NAME is set"
                 logger.error(error_msg)
                 return OperationResult(
                     operation="resolve_board",
@@ -405,21 +416,11 @@ class ClaimTicketOperations:
                     message=error_msg,
                 )
 
-            labels = data.get("fields", {}).get("labels", [])
-
-            # Check for platform-experience-ui label
-            if LABEL_PLATFORM_UI in labels:
-                self.board_id = self.platform_ui_board_id
-                logger.info(f"Found 'platform-experience-ui' label, using board {self.board_id}")
-            else:
-                self.board_id = self.default_board_id
-                logger.info(f"No 'platform-experience-ui' label, using default board {self.board_id}")
-
             return OperationResult(
                 operation="resolve_board",
                 status=OperationStatus.SUCCESS,
                 message=f"Resolved board ID: {self.board_id}",
-                details={"board_id": self.board_id, "labels": labels},
+                details={"board_id": self.board_id},
             )
         except Exception as e:
             error_msg = f"Failed to resolve board: {str(e)}"

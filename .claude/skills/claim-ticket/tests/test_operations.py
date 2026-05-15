@@ -15,8 +15,6 @@ def operations():
     """Create ClaimTicketOperations instance for testing."""
     return ClaimTicketOperations(
         memory_url="https://test-memory.example.com",
-        platform_ui_board_id=9297,
-        default_board_id=8070,
         dry_run=False,
     )
 
@@ -171,24 +169,52 @@ class TestResolveBoard:
     """Test resolve_board operation."""
 
     @patch("scripts.claim_ticket_operations.jira_call")
-    def test_resolve_board_platform_ui_label(self, mock_jira_call, operations):
-        """Test board resolution with platform-experience-ui label."""
-        mock_jira_call.return_value = {"fields": {"labels": ["platform-experience-ui", "other-label"]}}
+    def test_resolve_board_from_env_id(self, mock_jira_call, operations, monkeypatch):
+        """Test board resolution from BOT_BOARD_ID env var."""
+        monkeypatch.setenv("BOT_BOARD_ID", "9297")
 
         result = operations.resolve_board("RHCLOUD-12345")
 
         assert result.status == OperationStatus.SUCCESS
-        assert operations.board_id == 9297
+        assert operations.board_id == "9297"
+        mock_jira_call.assert_not_called()
 
     @patch("scripts.claim_ticket_operations.jira_call")
-    def test_resolve_board_default(self, mock_jira_call, operations):
-        """Test board resolution without platform-experience-ui label."""
-        mock_jira_call.return_value = {"fields": {"labels": ["other-label"]}}
+    def test_resolve_board_from_env_name(self, mock_jira_call, operations, monkeypatch):
+        """Test board resolution from BOT_BOARD_NAME env var via Jira lookup."""
+        monkeypatch.delenv("BOT_BOARD_ID", raising=False)
+        monkeypatch.setenv("BOT_BOARD_NAME", "Platform Experience UI")
+        mock_jira_call.return_value = {"values": [{"id": 9297, "name": "Platform Experience UI"}]}
 
         result = operations.resolve_board("RHCLOUD-12345")
 
         assert result.status == OperationStatus.SUCCESS
-        assert operations.board_id == 8070
+        assert operations.board_id == "9297"
+        mock_jira_call.assert_called_once_with(
+            "jira_get_agile_boards", {"board_name": "Platform Experience UI", "limit": 1}
+        )
+
+    @patch("scripts.claim_ticket_operations.jira_call")
+    def test_resolve_board_name_not_found(self, mock_jira_call, operations, monkeypatch):
+        """Test board resolution when name lookup returns empty."""
+        monkeypatch.delenv("BOT_BOARD_ID", raising=False)
+        monkeypatch.setenv("BOT_BOARD_NAME", "Nonexistent Board")
+        mock_jira_call.return_value = {"values": []}
+
+        result = operations.resolve_board("RHCLOUD-12345")
+
+        assert result.status == OperationStatus.FAILED
+        assert "No board found" in result.message
+
+    def test_resolve_board_no_env_vars(self, operations, monkeypatch):
+        """Test board resolution when no env vars set."""
+        monkeypatch.delenv("BOT_BOARD_ID", raising=False)
+        monkeypatch.delenv("BOT_BOARD_NAME", raising=False)
+
+        result = operations.resolve_board("RHCLOUD-12345")
+
+        assert result.status == OperationStatus.FAILED
+        assert "Neither BOT_BOARD_ID nor BOT_BOARD_NAME" in result.message
 
 
 class TestGetActiveSprint:
@@ -197,19 +223,19 @@ class TestGetActiveSprint:
     @patch("scripts.claim_ticket_operations.jira_call")
     def test_get_active_sprint_success(self, mock_jira_call, operations):
         """Test successful active sprint retrieval."""
-        operations.board_id = 9297
+        operations.board_id = "9297"
         mock_jira_call.return_value = {"sprints": [{"id": 12345, "name": "Sprint 42"}]}
 
         result = operations.get_active_sprint()
 
         assert result.status == OperationStatus.SUCCESS
         assert operations.sprint_id == 12345
-        mock_jira_call.assert_called_once_with("jira_get_sprints_from_board", {"board_id": 9297, "state": "active"})
+        mock_jira_call.assert_called_once_with("jira_get_sprints_from_board", {"board_id": "9297", "state": "active"})
 
     @patch("scripts.claim_ticket_operations.jira_call")
     def test_get_active_sprint_no_active(self, mock_jira_call, operations):
         """Test when no active sprint found."""
-        operations.board_id = 9297
+        operations.board_id = "9297"
         mock_jira_call.return_value = {"sprints": []}
 
         result = operations.get_active_sprint()
@@ -243,7 +269,7 @@ class TestTaskAdd:
     def test_task_add_success(self, mock_client_class, operations):
         """Test successful task addition to memory server."""
         operations.bot_account_id = "bot-123"
-        operations.board_id = 9297
+        operations.board_id = "9297"
         operations.sprint_id = 12345
 
         mock_client = Mock()

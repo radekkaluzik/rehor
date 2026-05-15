@@ -11,6 +11,7 @@ TEST_MEMORY_URL = "https://test-memory.example.com"
 TEST_SPRINT_ID = 12345
 TEST_SPRINT_NAME = "Sprint 42"
 TEST_TRANSITION_ID = "21"
+TEST_BOARD_ID = "9297"
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def successful_jira_responses():
         "jira_get_transitions": {"transitions": [{"id": TEST_TRANSITION_ID, "name": "In Progress"}]},
         "jira_update_issue": {},
         "jira_transition_issue": {},
-        "jira_get_issue": {"fields": {"labels": ["platform-experience-ui"]}},
+        "jira_get_agile_boards": {"values": [{"id": int(TEST_BOARD_ID), "name": "Test Board"}]},
         "jira_get_sprints_from_board": {"sprints": [{"id": TEST_SPRINT_ID, "name": TEST_SPRINT_NAME}]},
         "jira_add_issues_to_sprint": {},
     }

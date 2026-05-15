@@ -26,7 +26,7 @@ When the bot picks up new work, this skill executes 8 operations in sequence:
 2. **get_transitions** - Get available transitions and find "In Progress" ID
 3. **assign_ticket** - Assign ticket to bot user
 4. **transition_to_in_progress** - Move ticket to "In Progress" status
-5. **resolve_board** - Determine correct board (platform-experience-ui label → 9297, else → 8070)
+5. **resolve_board** - Determine board from BOT_BOARD_ID or BOT_BOARD_NAME env var
 6. **get_active_sprint** - Get active sprint from the board
 7. **add_to_sprint** - Add ticket to active sprint
 8. **task_add** - Track ticket in memory server
@@ -99,9 +99,9 @@ export JIRA_API_TOKEN=your_api_token_here
 # Memory Server (required)
 export BOT_MEMORY_URL=https://memory-server.example.com
 
-# Board Configuration (optional, has defaults)
-export PLATFORM_UI_BOARD_ID=9297
-export DEFAULT_BOARD_ID=8070
+# Board Configuration (one of these required)
+export BOT_BOARD_ID=9297                          # Direct board ID (skips lookup)
+export BOT_BOARD_NAME="Platform Experience UI"    # Lookup board by name via Jira
 ```
 
 **Note:** Uses JIRA Cloud API v3 with Basic authentication (email + API token).
@@ -197,16 +197,13 @@ Managed with **uv** for fast, reliable dependency resolution.
 
 ## Board Resolution Logic
 
-The skill uses label-based board detection to eliminate trial-and-error:
+The skill resolves the board from environment variables (same pattern as new-work skill):
 
-1. Fetch ticket labels from JIRA
-2. Check if `platform-experience-ui` label is present
-   - **Yes**: Use Board 9297 (Platform Experience UI board)
-   - **No**: Use Board 8070 (default board)
-3. Get active sprint from the resolved board
-4. Add ticket to that sprint
-
-This eliminates the previous approach that required retries when hitting the wrong board.
+1. If `BOT_BOARD_ID` is set → use directly (no API call needed)
+2. If `BOT_BOARD_NAME` is set → lookup via `jira_get_agile_boards`
+3. Neither set → fail with error
+4. Get active sprint from the resolved board
+5. Add ticket to that sprint
 
 ## Performance Optimizations
 
@@ -297,7 +294,7 @@ uv run pytest --cov=scripts --cov-report=term-missing -v
 |--------|--------------|---------------|
 | **Tool Calls** | ~10-15 (with retries) | 1 |
 | **API Calls** | 10-15 | 9 (8 with caching) |
-| **Board Detection** | Trial and error | Label-based, deterministic |
+| **Board Detection** | Trial and error | Env var config, deterministic |
 | **Account ID Lookup** | Every time | Cached after first call |
 | **Error Handling** | Retry with LLM | Fail-fast with clear errors |
 | **Execution Time** | ~30-60 seconds | ~2-5 seconds |
