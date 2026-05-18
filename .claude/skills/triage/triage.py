@@ -18,6 +18,7 @@ from jira_mcp import jira_call
 from paths import SLEEP_FILE
 
 MEMORY_URL = os.environ.get("BOT_MEMORY_URL", "http://localhost:8080").rstrip("/mcp").rstrip("/")
+INSTANCE_ID = os.environ.get("BOT_INSTANCE_ID", "")
 PROJECT_REPOS = Path(__file__).resolve().parent.parent.parent.parent / "project-repos.json"
 
 
@@ -31,13 +32,19 @@ def http_get(url, headers=None, timeout=10):
         return None
 
 
+def _instance_param():
+    if INSTANCE_ID:
+        return f"&instance_id={urllib.parse.quote(INSTANCE_ID)}"
+    return ""
+
+
 def get_tasks():
-    data = http_get(f"{MEMORY_URL}/api/tasks?exclude_status=archived&limit=50")
+    data = http_get(f"{MEMORY_URL}/api/tasks?exclude_status=archived&limit=50{_instance_param()}")
     return data.get("items", []) if data else []
 
 
 def get_capacity():
-    data = http_get(f"{MEMORY_URL}/api/tasks?exclude_status=archived&exclude_status=done&exclude_status=paused&limit=50")
+    data = http_get(f"{MEMORY_URL}/api/tasks?exclude_status=archived&exclude_status=done&exclude_status=paused&limit=50{_instance_param()}")
     if data and "items" in data:
         n = len([t for t in data["items"] if t.get("status") in ("in_progress", "pr_open", "pr_changes")])
         return n, 10
@@ -324,6 +331,10 @@ def has_new_jira_feedback(e):
 
 
 def main():
+    if not INSTANCE_ID:
+        print("FATAL: BOT_INSTANCE_ID env var not set. Multi-instance isolation requires it.", file=sys.stderr)
+        sys.exit(1)
+
     tasks = get_tasks()
     active_n, max_n = get_capacity()
 

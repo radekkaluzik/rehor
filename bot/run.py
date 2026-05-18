@@ -257,6 +257,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if not args.instance_id:
+        parser.error("--instance-id is required (or set BOT_INSTANCE_ID env var)")
+
     setup_logging()
     logger = logging.getLogger(__name__)
 
