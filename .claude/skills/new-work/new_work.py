@@ -22,6 +22,7 @@ BOT_LABEL = os.environ.get("BOT_LABEL", "")
 BOT_BOARD_ID = os.environ.get("BOT_BOARD_ID", "")
 BOT_BOARD_NAME = os.environ.get("BOT_BOARD_NAME", "")
 BOT_INCLUDE_BACKLOG = os.environ.get("BOT_INCLUDE_BACKLOG", "").lower() in ("1", "true", "yes")
+BOT_JIRA_EMAIL = os.environ.get("BOT_JIRA_EMAIL", "")
 NOT_STARTED_STATUSES = ("New", "Backlog", "Refinement", "To Do")
 
 
@@ -113,9 +114,13 @@ def get_candidates():
 
     if len(candidates) < 10 and BOT_INCLUDE_BACKLOG:
         existing_keys = {c["key"] for c in candidates}
+        if BOT_JIRA_EMAIL:
+            assignee_filter = f'AND (assignee is EMPTY OR assignee = "{BOT_JIRA_EMAIL}") '
+        else:
+            assignee_filter = "AND assignee is EMPTY "
         jql = (
             f"project = RHCLOUD AND labels = {BOT_LABEL} "
-            f"AND assignee is EMPTY AND status IN ({status_list}) "
+            f"{assignee_filter}AND status IN ({status_list}) "
             f"AND sprint is EMPTY "
             f"ORDER BY priority DESC, created ASC"
         )
