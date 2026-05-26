@@ -51,12 +51,9 @@ class TestDetectUnforkableRepos:
     def test_detect_missing_username(self, monkeypatch):
         """Test failure when BOT_GITHUB_USERNAME not set."""
         monkeypatch.delenv("BOT_GITHUB_USERNAME", raising=False)
-        ops = AutoForkOperations()
 
-        result = ops.detect_unforkable_repos()
-
-        assert result.status == OperationStatus.FAILED
-        assert "BOT_GITHUB_USERNAME" in result.message
+        with pytest.raises(ValueError, match="BOT_GITHUB_USERNAME"):
+            AutoForkOperations()
 
     def test_detect_missing_config_file(self, operations, tmp_path):
         """Test failure when project-repos.json missing."""
@@ -94,7 +91,6 @@ class TestForkRepos:
                 upstream="https://github.com/TestOrg/test-repo.git",
                 current_url=None,
                 host="github",
-                needs_fork=True,
             )
         ]
 
@@ -119,7 +115,6 @@ class TestForkRepos:
                 upstream="https://github.com/TestOrg/existing-repo.git",
                 current_url=None,
                 host="github",
-                needs_fork=True,
             )
         ]
 
@@ -142,7 +137,6 @@ class TestForkRepos:
                 upstream="https://github.com/TestOrg/fail-repo.git",
                 current_url=None,
                 host="github",
-                needs_fork=True,
             )
         ]
 
@@ -174,7 +168,6 @@ class TestForkRepos:
                 upstream="https://github.com/TestOrg/test-repo.git",
                 current_url=None,
                 host="github",
-                needs_fork=True,
             )
         ]
 

@@ -19,12 +19,13 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 # Configure logging
@@ -63,7 +64,6 @@ class RepoInfo:
     upstream: str
     current_url: Optional[str]
     host: str  # "github" or "gitlab"
-    needs_fork: bool
 
 
 class AutoForkOperations:
@@ -75,12 +75,17 @@ class AutoForkOperations:
 
         Args:
             dry_run: If True, log actions without executing them
+
+        Raises:
+            ValueError: If required environment variables are invalid
         """
         self.dry_run = dry_run
         self.bot_username = os.environ.get("BOT_GITHUB_USERNAME", "")
-        self.config_repo_url = os.environ.get("BOT_CONFIG_REPO", "")
         self.instance_id = os.environ.get("BOT_INSTANCE_ID", "")
         self.config_path = os.environ.get("BOT_CONFIG_PATH", "rehor-config")
+
+        # Validate inputs
+        self._validate_inputs()
 
         # Determine config directory
         # Use remote-config if it exists (bot runtime), else fall back to local config
@@ -101,6 +106,23 @@ class AutoForkOperations:
         # State
         self.repos_to_fork: List[RepoInfo] = []
         self.forked_repos: Dict[str, str] = {}  # name -> fork_url
+
+    def _validate_inputs(self) -> None:
+        """
+        Validate required environment variables and inputs.
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if not self.bot_username:
+            raise ValueError("BOT_GITHUB_USERNAME environment variable is required")
+
+        # Validate GitHub username format (alphanumeric, hyphens, max 39 chars)
+        if not re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$", self.bot_username):
+            raise ValueError(f"Invalid GitHub username: {self.bot_username}")
+
+        if not self.config_path:
+            raise ValueError("BOT_CONFIG_PATH cannot be empty")
 
     def detect_unforkable_repos(self) -> OperationResult:
         """
@@ -173,7 +195,6 @@ class AutoForkOperations:
                 upstream=upstream,
                 current_url=current_url,
                 host=host,
-                needs_fork=host == "github",  # Only auto-fork GitHub for now
             )
 
             if host == "gitlab":
@@ -286,6 +307,125 @@ class AutoForkOperations:
             details={"forked": list(self.forked_repos.keys())},
         )
 
+    def _update_config_file(self) -> None:
+        """
+        Update project-repos.json with fork URLs.
+
+        Raises:
+            OSError: If file operations fail
+            json.JSONDecodeError: If JSON parsing fails
+        """
+        with open(self.project_repos_path) as f:
+            repos_config = json.load(f)
+
+        for name, fork_url in self.forked_repos.items():
+            if name in repos_config:
+                repos_config[name]["url"] = fork_url
+                logger.info(f"Updated {name}: url = {fork_url}")
+
+        with open(self.project_repos_path, "w") as f:
+            json.dump(repos_config, f, indent=2)
+            f.write("\n")  # Add trailing newline
+
+        logger.info(f"Updated {len(self.forked_repos)} repo entries")
+
+    def _get_default_branch(self) -> str:
+        """
+        Get the default branch name from git remote.
+
+        Returns:
+            Default branch name (e.g., 'master' or 'main')
+        """
+        result = subprocess.run(
+            ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip().split("/")[-1]
+        return "master"
+
+    def _create_feature_branch(self) -> Tuple[str, Path]:
+        """
+        Create a new feature branch for the changes.
+
+        Returns:
+            Tuple of (branch_name, working_directory)
+
+        Raises:
+            subprocess.CalledProcessError: If git operations fail
+        """
+        config_work_dir = self.config_dir
+        os.chdir(config_work_dir)
+
+        # Ensure we're on default branch and up to date
+        subprocess.run(
+            ["git", "fetch", "origin"],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+
+        default_branch = self._get_default_branch()
+
+        subprocess.run(
+            ["git", "checkout", default_branch],
+            check=True,
+            capture_output=True,
+        )
+
+        subprocess.run(
+            ["git", "pull", "--ff-only"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Create branch
+        instance_suffix = f"-{self.instance_id}" if self.instance_id else ""
+        branch_name = f"bot/auto-fork{instance_suffix}"
+
+        subprocess.run(
+            ["git", "checkout", "-b", branch_name],
+            check=True,
+            capture_output=True,
+        )
+
+        return branch_name, config_work_dir
+
+    def _commit_changes(self, branch_name: str, config_work_dir: Path) -> None:
+        """
+        Stage and commit changes to git.
+
+        Args:
+            branch_name: Name of the branch to commit to
+            config_work_dir: Working directory path
+
+        Raises:
+            subprocess.CalledProcessError: If git operations fail
+        """
+        rel_path = self.project_repos_path.relative_to(config_work_dir)
+        subprocess.run(
+            ["git", "add", str(rel_path)],
+            check=True,
+            capture_output=True,
+        )
+
+        instance_label = self.instance_id or "bot"
+        commit_msg = f"chore: auto-fork repos for {instance_label}\n\nForked {len(self.forked_repos)} repos:\n"
+        for name in self.forked_repos.keys():
+            commit_msg += f"- {name}\n"
+
+        subprocess.run(
+            ["git", "commit", "-m", commit_msg],
+            check=True,
+            capture_output=True,
+        )
+
+        logger.info(f"Committed changes to branch {branch_name}")
+        logger.info(f"Working directory: {config_work_dir}")
+        logger.info("Next: use push-and-pr skill to create PR")
+
     def update_and_commit(self) -> OperationResult:
         """
         Update project-repos.json with fork URLs and commit changes.
@@ -315,93 +455,9 @@ class AutoForkOperations:
             )
 
         try:
-            # Load current config
-            with open(self.project_repos_path) as f:
-                repos_config = json.load(f)
-
-            # Update fork URLs
-            for name, fork_url in self.forked_repos.items():
-                if name in repos_config:
-                    repos_config[name]["url"] = fork_url
-                    logger.info(f"Updated {name}: url = {fork_url}")
-
-            # Write updated config
-            with open(self.project_repos_path, "w") as f:
-                json.dump(repos_config, f, indent=2)
-                f.write("\n")  # Add trailing newline
-
-            logger.info(f"Updated {len(self.forked_repos)} repo entries")
-
-            # Work in config directory
-            config_work_dir = self.config_dir if self.config_dir == REMOTE_CONFIG_DIR else self.config_dir
-            os.chdir(config_work_dir)
-
-            # Ensure we're on default branch and up to date
-            subprocess.run(
-                ["git", "fetch", "origin"],
-                check=True,
-                capture_output=True,
-                timeout=30,
-            )
-
-            # Get default branch name
-            default_branch_result = subprocess.run(
-                ["git", "symbolic-ref", "refs/remotes/origin/HEAD"],
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-            default_branch = (
-                default_branch_result.stdout.strip().split("/")[-1]
-                if default_branch_result.returncode == 0
-                else "master"
-            )
-
-            subprocess.run(
-                ["git", "checkout", default_branch],
-                check=True,
-                capture_output=True,
-            )
-
-            subprocess.run(
-                ["git", "pull", "--ff-only"],
-                check=True,
-                capture_output=True,
-            )
-
-            # Create branch
-            instance_suffix = f"-{self.instance_id}" if self.instance_id else ""
-            branch_name = f"bot/auto-fork{instance_suffix}"
-
-            subprocess.run(
-                ["git", "checkout", "-b", branch_name],
-                check=True,
-                capture_output=True,
-            )
-
-            # Stage changes
-            rel_path = self.project_repos_path.relative_to(config_work_dir)
-            subprocess.run(
-                ["git", "add", str(rel_path)],
-                check=True,
-                capture_output=True,
-            )
-
-            # Commit
-            instance_label = self.instance_id or "bot"
-            commit_msg = f"chore: auto-fork repos for {instance_label}\n\nForked {len(self.forked_repos)} repos:\n"
-            for name in self.forked_repos.keys():
-                commit_msg += f"- {name}\n"
-
-            subprocess.run(
-                ["git", "commit", "-m", commit_msg],
-                check=True,
-                capture_output=True,
-            )
-
-            logger.info(f"Committed changes to branch {branch_name}")
-            logger.info(f"Working directory: {config_work_dir}")
-            logger.info("Next: use push-and-pr skill to create PR")
+            self._update_config_file()
+            branch_name, config_work_dir = self._create_feature_branch()
+            self._commit_changes(branch_name, config_work_dir)
 
             return OperationResult(
                 operation="update_and_commit",
@@ -414,8 +470,8 @@ class AutoForkOperations:
                 },
             )
 
-        except Exception as e:
-            error_msg = f"Exception during update_and_commit: {e}"
+        except (OSError, json.JSONDecodeError, subprocess.CalledProcessError) as e:
+            error_msg = f"Failed to update and commit: {e}"
             logger.error(error_msg)
             return OperationResult(
                 operation="update_and_commit",
@@ -466,25 +522,30 @@ def main():
     if args.dry_run:
         logger.info("DRY RUN MODE - no actual changes will be made")
 
-    ops = AutoForkOperations(dry_run=args.dry_run)
+    try:
+        ops = AutoForkOperations(dry_run=args.dry_run)
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        sys.exit(1)
+
     results = ops.execute_workflow()
 
     # Print summary
-    print("\n=== Auto-Fork Workflow Results ===")
+    logger.info("\n=== Auto-Fork Workflow Results ===")
     for result in results:
         status_text = result.status.value.upper()
-        print(f"[{status_text}] {result.operation}: {result.message}")
+        logger.info(f"[{status_text}] {result.operation}: {result.message}")
         if result.details:
             for key, value in result.details.items():
-                print(f"  {key}: {value}")
+                logger.info(f"  {key}: {value}")
 
     # Exit code
     if any(r.status == OperationStatus.FAILED for r in results):
         sys.exit(1)
     else:
         if not args.dry_run and results and results[-1].status == OperationStatus.SUCCESS:
-            print("\nChanges committed successfully!")
-            print("Next step: cd to the working directory and use push-and-pr skill to create PR")
+            logger.info("\nChanges committed successfully!")
+            logger.info("Next step: cd to the working directory and use push-and-pr skill to create PR")
         sys.exit(0)
 
 
