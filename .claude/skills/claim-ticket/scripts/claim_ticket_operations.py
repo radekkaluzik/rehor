@@ -461,9 +461,28 @@ class ClaimTicketOperations:
                 message=error_msg,
             )
 
+    def _check_existing_sprint(self, jira_key: str) -> Optional[str]:
+        """Return the name of the ticket's current active/future sprint, or None."""
+        try:
+            data = jira_call(
+                "jira_get_issue",
+                {"issue_key": jira_key, "fields": "customfield_10020"},
+            )
+            if not data:
+                return None
+            fields = data.get("fields", {}) if isinstance(data, dict) else {}
+            sprints = fields.get("customfield_10020") or []
+            for s in sprints:
+                if isinstance(s, dict) and s.get("state") in ("active", "future"):
+                    return s.get("name", "unknown")
+        except Exception as e:
+            logger.warning(f"Could not check existing sprint for {jira_key}: {e}")
+        return None
+
     def add_to_sprint(self, jira_key: str) -> OperationResult:
         """
         Add ticket to the active sprint via jira_add_issues_to_sprint.
+        Skips if the ticket already belongs to an active or future sprint.
 
         Args:
             jira_key: JIRA ticket key (e.g., RHCLOUD-12345)
@@ -478,6 +497,17 @@ class ClaimTicketOperations:
                 operation="add_to_sprint",
                 status=OperationStatus.FAILED,
                 message=error_msg,
+            )
+
+        existing = self._check_existing_sprint(jira_key)
+        if existing:
+            msg = f"{jira_key} already in sprint '{existing}' — skipping"
+            logger.info(msg)
+            return OperationResult(
+                operation="add_to_sprint",
+                status=OperationStatus.SUCCESS,
+                message=msg,
+                details={"skipped": True, "existing_sprint": existing},
             )
 
         logger.info(f"Adding {jira_key} to sprint {self.sprint_id}...")

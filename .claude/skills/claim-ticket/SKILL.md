@@ -52,9 +52,11 @@ export BOT_JIRA_EMAIL=<your-bot-jira-email>
 # Memory Server (required)
 export BOT_MEMORY_URL=https://memory-server.example.com
 
-# Board Configuration (one of these required)
-export BOT_BOARD_ID=9297                          # Direct board ID (skips lookup)
-export BOT_BOARD_NAME="Platform Experience UI"    # Lookup board by name via Jira
+# Board Configuration (one of these required for sprint assignment)
+# WARNING: These are EXAMPLES — use your instance's actual board ID/name.
+# Using wrong board IDs overwrites the ticket's existing sprint.
+export BOT_BOARD_ID=<your-board-id>               # Direct board ID (skips lookup)
+export BOT_BOARD_NAME="<Your Board Name>"         # Lookup board by name via Jira
 ```
 
 ## Authentication

@@ -285,7 +285,7 @@ Before starting work, `jira_get_issue` → check issue links:
 
 #### Implement
 
-1. **Claim**: Use `$BOT_JIRA_EMAIL` env var for assignee (never `jira_get_user_profile`). `jira_update_issue` assignee → `jira_get_transitions` → `jira_transition_issue` "In Progress" → **Sprint**: board from `BOT_BOARD_ID` or `BOT_BOARD_NAME` env var → `jira_get_sprints_from_board` state=active → `jira_add_issues_to_sprint`.
+1. **Claim**: `$BOT_JIRA_EMAIL` for assignee (never `jira_get_user_profile`). `jira_update_issue` assignee → `jira_get_transitions` → `jira_transition_issue` "In Progress" → **Sprint**: `jira_get_issue` fields=`customfield_10020` first — active/future sprint exists → **SKIP** (Jira overwrites existing sprint on add). No sprint → `BOT_BOARD_ID`/`BOT_BOARD_NAME` env → `jira_get_sprints_from_board` active → `jira_add_issues_to_sprint`. Neither env set → skip. **NEVER hardcode board IDs or use doc examples.**
 
 2. **Track**: `task_add` w/ `jira_key, repo, branch (bot/<KEY>), in_progress, title, summary, metadata`:
    ```json

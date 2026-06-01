@@ -241,16 +241,47 @@ class TestAddToSprint:
 
     @patch("scripts.claim_ticket_operations.jira_call")
     def test_add_to_sprint_success(self, mock_jira_call, operations):
-        """Test successful sprint addition."""
+        """Test successful sprint addition when ticket has no sprint."""
         operations.sprint_id = 12345
-        mock_jira_call.return_value = {}
+        mock_jira_call.side_effect = [
+            {"fields": {"customfield_10020": []}},
+            {},
+        ]
 
         result = operations.add_to_sprint("RHCLOUD-12345")
 
         assert result.status == OperationStatus.SUCCESS
-        mock_jira_call.assert_called_once_with(
+        assert mock_jira_call.call_count == 2
+        mock_jira_call.assert_any_call(
+            "jira_get_issue",
+            {"issue_key": "RHCLOUD-12345", "fields": "customfield_10020"},
+        )
+        mock_jira_call.assert_any_call(
             "jira_add_issues_to_sprint",
             {"sprint_id": 12345, "issue_keys": ["RHCLOUD-12345"]},
+        )
+
+    @patch("scripts.claim_ticket_operations.jira_call")
+    def test_add_to_sprint_skips_existing(self, mock_jira_call, operations):
+        """Test sprint addition is skipped when ticket already has an active sprint."""
+        operations.sprint_id = 12345
+        mock_jira_call.return_value = {
+            "fields": {
+                "customfield_10020": [
+                    {"id": 99999, "name": "CCXDEV Sprint 169", "state": "active"}
+                ]
+            }
+        }
+
+        result = operations.add_to_sprint("CCXDEV-16393")
+
+        assert result.status == OperationStatus.SUCCESS
+        assert "already in sprint" in result.message
+        assert result.details["skipped"] is True
+        assert result.details["existing_sprint"] == "CCXDEV Sprint 169"
+        mock_jira_call.assert_called_once_with(
+            "jira_get_issue",
+            {"issue_key": "CCXDEV-16393", "fields": "customfield_10020"},
         )
 
 
