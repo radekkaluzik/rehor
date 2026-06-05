@@ -535,3 +535,62 @@ objects:
         protocol: UDP
       - port: 5353
         protocol: TCP
+
+# --- NetworkPolicy: Proxy accepts ingress from bot pods ---
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: ${PROXY_NAME}-ingress
+    labels:
+      app.kubernetes.io/part-of: devbot
+  spec:
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: ${PROXY_NAME}
+    policyTypes:
+    - Ingress
+    ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/part-of: devbot
+      ports:
+      - port: 3128
+        protocol: TCP
+      - port: 9090
+        protocol: TCP
+      - port: 8443
+        protocol: TCP
+      - port: 8444
+        protocol: TCP
+      - port: 8446
+        protocol: TCP
+
+# --- NetworkPolicy: Memory server accepts ingress from bot pods + OpenShift router ---
+- apiVersion: networking.k8s.io/v1
+  kind: NetworkPolicy
+  metadata:
+    name: devbot-memory-server-ingress
+    labels:
+      app.kubernetes.io/part-of: devbot
+  spec:
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: memory-server
+    policyTypes:
+    - Ingress
+    ingress:
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/part-of: devbot
+      ports:
+      - port: 8080
+        protocol: TCP
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            network.openshift.io/policy-group: ingress
+      ports:
+      - port: 8080
+        protocol: TCP
