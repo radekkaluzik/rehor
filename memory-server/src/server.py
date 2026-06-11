@@ -95,6 +95,7 @@ from .api import (  # noqa: E402
     api_analytics,
     api_cycle_runs,
     api_cycle_run_transcript,
+    api_cycle_runs_by_task,
 )
 
 mcp.custom_route("/api/tasks", methods=["GET"])(api_tasks)
@@ -115,6 +116,7 @@ mcp.custom_route("/api/tags", methods=["GET"])(api_tags)
 mcp.custom_route("/api/stats", methods=["GET"])(api_stats)
 mcp.custom_route("/api/analytics", methods=["GET"])(api_analytics)
 mcp.custom_route("/api/cycle-runs", methods=["GET", "POST"])(api_cycle_runs)
+mcp.custom_route("/api/cycle-runs/by-task", methods=["GET"])(api_cycle_runs_by_task)
 mcp.custom_route("/api/cycle-runs/{id}/transcript", methods=["GET"])(
     api_cycle_run_transcript
 )

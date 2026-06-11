@@ -973,6 +973,64 @@ async def api_cycle_run_transcript(request: Request) -> Response:
     )
 
 
+async def api_cycle_runs_by_task(request: Request) -> JSONResponse:
+    """GET /api/cycle-runs/by-task — cycle runs grouped by task with summary stats."""
+    pool = get_pool()
+    instance_id = request.query_params.get("instance_id")
+
+    conditions, params, idx = [], [], 0
+    if instance_id:
+        idx += 1
+        conditions.append(f"cr.instance_id = ${idx}")
+        params.append(instance_id)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    rows = await pool.fetch(
+        f"""
+        SELECT
+            cr.task_id,
+            t.jira_key,
+            t.title,
+            t.status::text AS task_status,
+            t.repo,
+            COUNT(*) AS cycle_count,
+            COUNT(*) FILTER (WHERE cr.transcript IS NOT NULL) AS transcript_count,
+            SUM(cr.tool_calls) AS total_tool_calls,
+            SUM(cr.tokens_used) AS total_tokens,
+            MIN(cr.started_at) AS first_cycle,
+            MAX(cr.started_at) AS last_cycle
+        FROM cycle_runs cr
+        LEFT JOIN tasks t ON t.id = cr.task_id
+        {where}
+        GROUP BY cr.task_id, t.jira_key, t.title, t.status, t.repo
+        ORDER BY MAX(cr.started_at) DESC
+        """,
+        *params,
+    )
+
+    groups = []
+    for r in rows:
+        groups.append(
+            {
+                "task_id": r["task_id"],
+                "jira_key": r["jira_key"],
+                "title": r["title"],
+                "task_status": r["task_status"],
+                "repo": r["repo"],
+                "cycle_count": r["cycle_count"],
+                "transcript_count": r["transcript_count"],
+                "total_tool_calls": r["total_tool_calls"],
+                "total_tokens": r["total_tokens"],
+                "first_cycle": r["first_cycle"].isoformat()
+                if r["first_cycle"]
+                else None,
+                "last_cycle": r["last_cycle"].isoformat() if r["last_cycle"] else None,
+            }
+        )
+    return JSONResponse(groups)
+
+
 def _task(row, slack_notif=None) -> dict:
     result = {
         "id": row["id"],

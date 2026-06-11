@@ -1,6 +1,7 @@
 #!/bin/bash
 # Start the HCC dev proxy (Caddy-based) for UI verification.
 # Generates Caddy route config from a routes.json file and starts Caddy.
+#
 # Env vars:
 #   ROUTES_JSON_PATH  — path to routes.json (required)
 #   HCC_ENV           — environment name (default: stage)
