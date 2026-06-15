@@ -104,6 +104,33 @@ export interface EmbeddingPoint {
   z: number;
 }
 
+export interface TaskCycleGroup {
+  task_id: number | null;
+  jira_key: string | null;
+  title: string | null;
+  task_status: string | null;
+  repo: string | null;
+  cycle_count: number;
+  transcript_count: number;
+  total_tool_calls: number | null;
+  total_tokens: number | null;
+  first_cycle: string | null;
+  last_cycle: string | null;
+}
+
+export interface CycleRun {
+  id: number;
+  task_id: number | null;
+  cycle_type: string;
+  instance_id: string | null;
+  started_at: string;
+  finished_at: string | null;
+  tool_calls: number | null;
+  tokens_used: number | null;
+  progress: Record<string, any>;
+  created_at: string;
+}
+
 export interface WSEvent {
   type: string;
   data: any;

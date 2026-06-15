@@ -13,6 +13,7 @@ const Search = lazy(() => import('./pages/Search'));
 const Costs = lazy(() => import('./pages/Costs'));
 const EmbeddingMap = lazy(() => import('./pages/EmbeddingMap'));
 const ArchivedTasks = lazy(() => import('./pages/ArchivedTasks'));
+const CycleRuns = lazy(() => import('./pages/CycleRuns'));
 
 function InstanceSelector({ instances, currentId }: { instances: BotInstance[]; currentId?: string }) {
   const navigate = useNavigate();
@@ -59,6 +60,7 @@ function InstanceScoped() {
         <NavLink to={`${base}/archived`}>Archive</NavLink>
         <NavLink to={`${base}/memories`}>Memories</NavLink>
         <NavLink to={`${base}/search`}>Search</NavLink>
+        <NavLink to={`${base}/cycles`}>Cycles</NavLink>
         <NavLink to={`${base}/costs`}>Costs</NavLink>
         <NavLink to={`${base}/viz`}>Viz</NavLink>
       </nav>
@@ -66,6 +68,7 @@ function InstanceScoped() {
         <Routes>
           <Route path="tasks" element={<Tasks instanceId={instanceId} />} />
           <Route path="archived" element={<ArchivedTasks instanceId={instanceId} />} />
+          <Route path="cycles" element={<CycleRuns instanceId={instanceId} />} />
           <Route path="memories" element={<Memories />} />
           <Route path="search" element={<Search />} />
           <Route path="costs" element={<Costs />} />
@@ -167,6 +170,7 @@ function AppInner() {
           <nav className="tab-nav">
             <NavLink to="/tasks">Tasks</NavLink>
             <NavLink to="/archived">Archive</NavLink>
+            <NavLink to="/cycles">Cycles</NavLink>
             <NavLink to="/memories">Memories</NavLink>
             <NavLink to="/search">Search</NavLink>
             <NavLink to="/costs">Costs</NavLink>
@@ -179,6 +183,7 @@ function AppInner() {
             <Route path="/instances" element={<Instances />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/archived" element={<ArchivedTasks />} />
+            <Route path="/cycles" element={<CycleRuns />} />
             <Route path="/memories" element={<Memories />} />
             <Route path="/search" element={<Search />} />
             <Route path="/costs" element={<Costs />} />

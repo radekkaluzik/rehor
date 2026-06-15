@@ -16,9 +16,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-CYCLE_RUNS_API = os.environ.get(
-    "CYCLE_RUNS_API_URL", "http://localhost:8080/api/cycle-runs"
-)
+
+def _get_cycle_runs_url() -> str:
+    explicit = os.environ.get("CYCLE_RUNS_API_URL")
+    if explicit:
+        return explicit
+    costs_url = os.environ.get("COSTS_API_URL", "http://localhost:8080/api/costs")
+    return costs_url.rsplit("/", 1)[0] + "/cycle-runs"
+
+
+CYCLE_RUNS_API = _get_cycle_runs_url()
 
 _WORK_TYPE_TO_CYCLE_TYPE = {
     "new_ticket": "task_work",
@@ -121,6 +128,9 @@ def record_transcript(
         logger.debug("Transcript file not found for session %s", session_id)
 
     try:
-        httpx.post(CYCLE_RUNS_API, json=body, timeout=10.0)
+        resp = httpx.post(CYCLE_RUNS_API, json=body, timeout=10.0)
+        logger.info(
+            "Cycle run stored: id=%s status=%s", resp.json().get("id"), resp.status_code
+        )
     except Exception:
-        logger.warning("Failed to push cycle run to API", exc_info=True)
+        logger.warning("Failed to push cycle run to %s", CYCLE_RUNS_API, exc_info=True)

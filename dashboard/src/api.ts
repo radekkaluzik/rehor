@@ -73,6 +73,28 @@ export async function fetchCosts(days = 30, limit = 200, dateFrom?: string, date
   return (await fetch(`/api/costs?${qs}`)).json();
 }
 
+export async function fetchCycleRuns(params: { task_id?: number; instance_id?: string; cycle_type?: string; limit?: number; offset?: number }) {
+  const qs = new URLSearchParams();
+  if (params.task_id != null) qs.set('task_id', String(params.task_id));
+  if (params.instance_id) qs.set('instance_id', params.instance_id);
+  if (params.cycle_type) qs.set('cycle_type', params.cycle_type);
+  qs.set('limit', String(params.limit ?? 50));
+  qs.set('offset', String(params.offset ?? 0));
+  return (await fetch('/api/cycle-runs?' + qs)).json();
+}
+
+export async function fetchCycleRunsByTask(params: { instance_id?: string }) {
+  const qs = new URLSearchParams();
+  if (params.instance_id) qs.set('instance_id', params.instance_id);
+  return (await fetch('/api/cycle-runs/by-task?' + qs)).json();
+}
+
+export async function fetchCycleRunTranscript(id: number): Promise<string> {
+  const res = await fetch(`/api/cycle-runs/${id}/transcript?decompress=true`);
+  if (!res.ok) throw new Error(`Failed to fetch transcript: ${res.status}`);
+  return res.text();
+}
+
 export async function fetchAnalytics(days = 30, dateFrom?: string, dateTo?: string) {
   const qs = new URLSearchParams();
   if (dateFrom) qs.set('from', dateFrom);
