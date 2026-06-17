@@ -355,10 +355,17 @@ function CycleRunDetail({
           </div>
         )}
 
-        <div className="detail-section">
-          <span className="detail-label">Transcript</span>
-          <TranscriptViewer runId={run.id} onRequestFullscreen={() => { if (!fullscreen) onToggleFullscreen(); }} />
-        </div>
+        {run.has_transcript ? (
+          <div className="detail-section">
+            <span className="detail-label">Transcript</span>
+            <TranscriptViewer runId={run.id} onRequestFullscreen={() => { if (!fullscreen) onToggleFullscreen(); }} />
+          </div>
+        ) : (
+          <div className="detail-section">
+            <span className="detail-label">Transcript</span>
+            <span className="transcript-unavailable">No transcript available for this cycle run.</span>
+          </div>
+        )}
       </div>
     </div>
   );

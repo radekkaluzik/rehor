@@ -819,7 +819,8 @@ async def api_stats(request: Request) -> JSONResponse:
 
 _CYCLE_RUN_LIST_COLUMNS = (
     "id, task_id, cycle_type, instance_id, started_at, finished_at, "
-    "tool_calls, tokens_used, progress, created_at"
+    "tool_calls, tokens_used, progress, created_at, "
+    "(transcript IS NOT NULL) AS has_transcript"
 )
 
 
@@ -1000,10 +1001,10 @@ async def api_cycle_runs_by_task(request: Request) -> JSONResponse:
         f"""
         SELECT
             cr.task_id,
-            t.jira_key,
+            COALESCE(t.jira_key, cr.progress->>'jira_key') AS jira_key,
             t.title,
             t.status::text AS task_status,
-            t.repo,
+            COALESCE(t.repo, cr.progress->>'repo') AS repo,
             COUNT(*) AS cycle_count,
             COUNT(*) FILTER (WHERE cr.transcript IS NOT NULL) AS transcript_count,
             SUM(cr.tool_calls) AS total_tool_calls,
@@ -1013,7 +1014,8 @@ async def api_cycle_runs_by_task(request: Request) -> JSONResponse:
         FROM cycle_runs cr
         LEFT JOIN tasks t ON t.id = cr.task_id
         {where}
-        GROUP BY cr.task_id, t.jira_key, t.title, t.status, t.repo
+        GROUP BY cr.task_id, COALESCE(t.jira_key, cr.progress->>'jira_key'),
+                 t.title, t.status, COALESCE(t.repo, cr.progress->>'repo')
         ORDER BY MAX(cr.started_at) DESC
         """,
         *params,
@@ -1118,4 +1120,5 @@ def _cycle_run(row) -> dict:
         if isinstance(row["progress"], str)
         else (row["progress"] or {}),
         "created_at": row["created_at"].isoformat(),
+        "has_transcript": bool(row.get("has_transcript", False)),
     }

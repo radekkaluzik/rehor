@@ -53,13 +53,15 @@ export default function CycleRunCard({ run, selected, onClick }: Props) {
         <span className="cycle-run-time" title={run.started_at}>
           {timeAgo(run.started_at)}
         </span>
-        <button
-          className="btn-download-cycle"
-          onClick={handleDownload}
-          title="Download transcript"
-        >
-          &#11015;
-        </button>
+        {run.has_transcript && (
+          <button
+            className="btn-download-cycle"
+            onClick={handleDownload}
+            title="Download transcript"
+          >
+            &#11015;
+          </button>
+        )}
       </div>
       <div className="cycle-run-meta">
         {duration != null && (

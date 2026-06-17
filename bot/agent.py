@@ -309,9 +309,22 @@ def _extract_context(block, ctx: CycleContext) -> None:
     elif name == "mcp__bot-memory__memory_delete":
         ctx.work_type = ctx.work_type or "memory_housekeeping"
 
+    # progress_store carries jira_key in progress dict
+    elif name == "mcp__bot-memory__progress_store":
+        progress = inp.get("progress") or {}
+        if isinstance(progress, dict):
+            if progress.get("jira_key"):
+                ctx.jira_key = ctx.jira_key or progress["jira_key"]
+            if progress.get("repo"):
+                ctx.repo = ctx.repo or progress["repo"]
+
 
 def _extract_task_id_from_result(block: ToolResultBlock, ctx: CycleContext) -> None:
-    """Extract task_id from MCP tool result content (task_add/task_get/task_update return task objects)."""
+    """Extract task_id from MCP tool result content.
+
+    Matches task objects (task_add/get/update → {id, jira_key, ...})
+    and cycle run objects (progress_store → {task_id, cycle_type, ...}).
+    """
     content = block.content
     if not content:
         return
@@ -326,11 +339,13 @@ def _extract_task_id_from_result(block: ToolResultBlock, ctx: CycleContext) -> N
         if not text:
             return
         data = json.loads(text)
-        if (
-            isinstance(data, dict)
-            and isinstance(data.get("id"), int)
-            and "jira_key" in data
-        ):
+        if not isinstance(data, dict):
+            return
+        # Task objects: {id: int, jira_key: ...}
+        if isinstance(data.get("id"), int) and "jira_key" in data:
             ctx.task_id = data["id"]
+        # Cycle run objects from progress_store: {task_id: int, cycle_type: ...}
+        elif isinstance(data.get("task_id"), int) and data["task_id"] > 0:
+            ctx.task_id = data["task_id"]
     except (json.JSONDecodeError, TypeError, IndexError, AttributeError):
         pass

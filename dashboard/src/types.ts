@@ -129,6 +129,7 @@ export interface CycleRun {
   tokens_used: number | null;
   progress: Record<string, any>;
   created_at: string;
+  has_transcript?: boolean;
 }
 
 export interface WSEvent {
