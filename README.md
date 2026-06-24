@@ -2,7 +2,15 @@
 
 An autonomous developer agent that picks groomed Jira tickets, implements them, opens PRs, and maintains them through review — all without human intervention. It runs in a polling loop using the Claude Agent SDK (Python) and integrates with Jira, GitHub/GitLab, and a persistent memory system.
 
-**Detailed docs:** [Architecture](ARCHITECTURE.md) | [Setup](SETUP.md) | [Operations](OPERATIONS.md) | [Onboarding a New Instance](docs/onboarding-new-instance.md)
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](ARCHITECTURE.md) | System design, credential isolation, component overview |
+| [Setup](SETUP.md) | Local development setup and configuration |
+| [Operations](OPERATIONS.md) | Production operations, monitoring, troubleshooting |
+| [Onboarding a New Instance](docs/onboarding-new-instance.md) | Step-by-step guide for adding a new bot instance |
+| [Scheduling](docs/scheduling.md) | KEDA cron scaling for bot instances (business hours only) |
 
 ## Prerequisites
 
