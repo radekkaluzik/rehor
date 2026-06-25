@@ -39,8 +39,10 @@ async def api_tasks(request: Request) -> JSONResponse:
         total = await pool.fetchval(f"SELECT COUNT(*) FROM tasks {where}", *base_params)
         order_col = "last_addressed" if status == "archived" else "created_at"
         base_params.extend([limit, offset])
+        lim_idx = len(base_params) - 1
+        off_idx = len(base_params)
         rows = await pool.fetch(
-            f"SELECT * FROM tasks {where} ORDER BY {order_col} DESC LIMIT ${len(base_params) - 1} OFFSET ${len(base_params)}",
+            f"SELECT * FROM tasks {where} ORDER BY {order_col} DESC LIMIT ${lim_idx} OFFSET ${off_idx}",
             *base_params,
         )
     elif exclude:
@@ -53,8 +55,10 @@ async def api_tasks(request: Request) -> JSONResponse:
 
         total = await pool.fetchval(f"SELECT COUNT(*) FROM tasks {where}", *base_params)
         base_params.extend([limit, offset])
+        lim_idx = len(base_params) - 1
+        off_idx = len(base_params)
         rows = await pool.fetch(
-            f"SELECT * FROM tasks {where} ORDER BY created_at DESC LIMIT ${len(base_params) - 1} OFFSET ${len(base_params)}",
+            f"SELECT * FROM tasks {where} ORDER BY created_at DESC LIMIT ${lim_idx} OFFSET ${off_idx}",
             *base_params,
         )
     else:
@@ -127,7 +131,8 @@ async def api_task_unarchive(request: Request) -> JSONResponse:
     if not key:
         return JSONResponse({"error": "missing key"}, status_code=400)
     row = await pool.fetchrow(
-        "UPDATE tasks SET status = 'in_progress'::task_status, paused_reason = NULL WHERE external_key = $1 AND status = 'archived'::task_status RETURNING *",
+        "UPDATE tasks SET status = 'in_progress'::task_status, paused_reason = NULL"
+        " WHERE external_key = $1 AND status = 'archived'::task_status RETURNING *",
         key,
     )
     if not row:
@@ -174,8 +179,9 @@ async def api_memories(request: Request) -> JSONResponse:
     params.append(offset)
     offset_idx = idx
 
+    mem_cols = "id, category, repo, external_key, source_type, title, content, tags, created_at, metadata"
     rows = await pool.fetch(
-        f"SELECT id, category, repo, external_key, source_type, title, content, tags, created_at, metadata FROM memories {where} ORDER BY created_at DESC LIMIT ${limit_idx} OFFSET ${offset_idx}",
+        f"SELECT {mem_cols} FROM memories {where} ORDER BY created_at DESC LIMIT ${limit_idx} OFFSET ${offset_idx}",
         *params,
     )
     return JSONResponse(
@@ -283,8 +289,9 @@ async def api_memory_get(request: Request) -> JSONResponse:
     memory_id = request.path_params.get("id")
     if not memory_id:
         return JSONResponse({"error": "missing memory id"}, status_code=400)
+    mem_cols = "id, category, repo, external_key, source_type, title, content, tags, created_at, metadata"
     row = await pool.fetchrow(
-        "SELECT id, category, repo, external_key, source_type, title, content, tags, created_at, metadata FROM memories WHERE id = $1",
+        f"SELECT {mem_cols} FROM memories WHERE id = $1",
         int(memory_id),
     )
     if not row:
@@ -1090,6 +1097,7 @@ def _task(row, slack_notif=None) -> dict:
     result = {
         "id": row["id"],
         "external_key": row["external_key"],
+        "jira_key": row["external_key"],
         "source_type": row["source_type"],
         "source_url": row.get("source_url"),
         "artifacts": artifacts,

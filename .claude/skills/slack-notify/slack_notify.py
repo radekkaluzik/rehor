@@ -36,7 +36,7 @@ def main():
     result = memory_call(
         "slack_notify",
         {
-            "jira_key": jira_key,
+            "external_key": jira_key,
             "event_type": event_type,
             "message": message,
             "webhook_url": webhook_url,
