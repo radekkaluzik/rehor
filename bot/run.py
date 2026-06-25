@@ -229,6 +229,29 @@ def _read_sleep_signal(config: Config, instance_id: str | None = None) -> int:
     return sleep_seconds
 
 
+def assemble_claude_md(script_dir: Path) -> None:
+    """Concatenate core + workflow preset CLAUDE.md into project root."""
+    logger = logging.getLogger(__name__)
+    presets = script_dir / "presets"
+    core = presets / "core" / "CLAUDE.md"
+
+    workflow = os.environ.get("BOT_WORKFLOW_PRESET", "jira-sprint")
+    wf_path = presets / "workflows" / workflow / "CLAUDE.md"
+
+    if not core.is_file():
+        logger.warning("Core CLAUDE.md not found at %s — skipping assembly", core)
+        return
+    parts = [core.read_text()]
+    if wf_path.is_file():
+        parts.append(wf_path.read_text())
+    else:
+        logger.warning("Workflow CLAUDE.md not found at %s — using core only", wf_path)
+
+    output = script_dir / "CLAUDE.md"
+    output.write_text("".join(parts))
+    logger.info("Assembled CLAUDE.md from core + %s (%d bytes)", workflow, output.stat().st_size)
+
+
 def cleanup_between_cycles(script_dir: Path) -> None:
     """Free disk space between cycles if below threshold."""
     logger = logging.getLogger(__name__)
@@ -349,6 +372,8 @@ def main() -> None:
             if remote_agent_dir:
                 apply_merged_config(SCRIPT_DIR, remote_agent_dir)
 
+            assemble_claude_md(SCRIPT_DIR)
+
             logger.info("Running agent cycle...")
 
             try:
@@ -389,7 +414,7 @@ def main() -> None:
             else:
                 logger.warning("Cycle produced no result")
 
-            sleep_seconds = _read_sleep_signal(config, instance_id)
+            _read_sleep_signal(config, instance_id)
 
             cleanup_between_cycles(SCRIPT_DIR)
     finally:

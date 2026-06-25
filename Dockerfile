@@ -147,6 +147,7 @@ ENV BUILDAH_ISOLATION=chroot
 # Copy bot config files
 COPY config.json CLAUDE.md .mcp.json entrypoint.sh ./
 COPY .claude/ .claude/
+COPY presets/ presets/
 
 
 ENV HOME=/home/botuser
