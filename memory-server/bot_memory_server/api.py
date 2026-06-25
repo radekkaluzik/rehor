@@ -903,23 +903,57 @@ async def api_cycle_runs_add(request: Request) -> JSONResponse:
     parsed_started = datetime.fromisoformat(started_at) if started_at else None
     parsed_finished = datetime.fromisoformat(finished_at) if finished_at else None
 
-    row = await pool.fetchrow(
-        f"""
-        INSERT INTO cycle_runs (task_id, cycle_type, instance_id, started_at, finished_at,
-                                tool_calls, tokens_used, progress, transcript)
-        VALUES ($1, $2, $3, COALESCE($4, NOW()), $5, $6, $7, $8, $9)
-        RETURNING {_CYCLE_RUN_LIST_COLUMNS}
-        """,
-        task_id,
-        body.get("cycle_type", "task_work"),
-        body.get("instance_id"),
-        parsed_started,
-        parsed_finished,
-        body.get("tool_calls"),
-        body.get("tokens_used"),
-        json.dumps(progress or {}),
-        transcript_bytes,
-    )
+    instance_id_val = body.get("instance_id")
+
+    # When uploading a transcript, attach it to the most recent cycle_run
+    # for this specific instance that has no transcript yet (created by
+    # progress_store during the same cycle).
+    row = None
+    if transcript_bytes and instance_id_val:
+        row = await pool.fetchrow(
+            f"""
+            UPDATE cycle_runs
+            SET transcript = $1,
+                finished_at = COALESCE($2, finished_at, NOW()),
+                tool_calls = COALESCE($3, tool_calls),
+                tokens_used = COALESCE($4, tokens_used),
+                task_id = COALESCE(task_id, $5)
+            WHERE id = (
+                SELECT id FROM cycle_runs
+                WHERE instance_id = $6
+                  AND transcript IS NULL
+                  AND created_at > NOW() - INTERVAL '2 hours'
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
+            RETURNING {_CYCLE_RUN_LIST_COLUMNS}
+            """,
+            transcript_bytes,
+            parsed_finished,
+            body.get("tool_calls"),
+            body.get("tokens_used"),
+            task_id,
+            instance_id_val,
+        )
+
+    if row is None:
+        row = await pool.fetchrow(
+            f"""
+            INSERT INTO cycle_runs (task_id, cycle_type, instance_id, started_at, finished_at,
+                                    tool_calls, tokens_used, progress, transcript)
+            VALUES ($1, $2, $3, COALESCE($4, NOW()), $5, $6, $7, $8, $9)
+            RETURNING {_CYCLE_RUN_LIST_COLUMNS}
+            """,
+            task_id,
+            body.get("cycle_type", "task_work"),
+            instance_id_val,
+            parsed_started,
+            parsed_finished,
+            body.get("tool_calls"),
+            body.get("tokens_used"),
+            json.dumps(progress or {}),
+            transcript_bytes,
+        )
     result = _cycle_run(row)
     result["has_transcript"] = transcript_bytes is not None
     await bus.publish(
