@@ -284,7 +284,10 @@ def enrich(task):
         )
         if not pr_num:
             continue
-        up, dh = upstream_repo(pr_repo)
+        if "/" in pr_repo:
+            up, dh = pr_repo, pr_host or "github"
+        else:
+            up, dh = upstream_repo(pr_repo)
         host = pr_host or dh
 
         if host == "github" and up:
