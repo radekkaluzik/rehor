@@ -14,6 +14,7 @@ from common import (
     get_capacity,
     get_task_prs,
     get_tasks,
+    is_bot_author,
     load_state,
     output_result,
     save_state,
@@ -133,6 +134,18 @@ def enrich_gl(task):
     }
 
 
+def has_new_feedback(enriched):
+    """Check if there's new non-bot MR feedback since last_addressed."""
+    last_addr = enriched["task"].get("last_addressed", "")
+    for c in enriched["mr_notes"]:
+        if is_bot_author(c.get("a", "?")):
+            continue
+        ct = c.get("t", "")[:16]
+        if not last_addr or ct > last_addr[:16]:
+            return True
+    return False
+
+
 def fmt_task(enriched):
     """Format a task with GL MR details."""
     lines = fmt_task_header(enriched["task"])
@@ -176,6 +189,8 @@ def main():
         elif "conflict" in issues:
             conflict.append(e)
         elif "unresolved_threads" in issues:
+            feedback.append(e)
+        elif has_new_feedback(e):
             feedback.append(e)
         else:
             clean.append(e)

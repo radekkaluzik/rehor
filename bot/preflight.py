@@ -112,14 +112,29 @@ def _run_script(script: Path, script_dir: Path) -> ScriptResult:
 
 
 def _aggregate(results: list[ScriptResult]) -> PreflightResult:
-    """Aggregate script results: any error → error, any start → start, all skip → skip."""
-    has_error = any(r.status == "error" for r in results)
-    has_start = any(r.status == "start" for r in results)
+    """Aggregate script results: errors excluded, any start → start, all skip → skip.
 
-    all_content = "\n\n".join(r.content for r in results if r.content)
+    Errored scripts are logged but don't block the cycle — the remaining
+    scripts are aggregated normally. This avoids a transient API failure
+    (e.g. GitHub timeout) blocking Jira work that a different script found.
+    Only when ALL scripts error does the cycle become an error.
+    """
+    ok = [r for r in results if r.status != "error"]
+    errors = [r for r in results if r.status == "error"]
 
-    if has_error:
+    if errors:
+        for e in errors:
+            logger.warning("Preflight %s errored (excluded from aggregation): %s", e.name, e.content[:200])
+
+    if not ok:
+        all_content = "\n\n".join(r.content for r in results if r.content)
         return PreflightResult(action="error", transcript=all_content, scripts=results)
+
+    has_start = any(r.status == "start" for r in ok)
+    all_content = "\n\n".join(r.content for r in ok if r.content)
+    if errors:
+        error_summary = "\n".join(f"[PREFLIGHT ERROR] {e.name}: {e.content[:200]}" for e in errors)
+        all_content = f"{error_summary}\n\n{all_content}" if all_content else error_summary
 
     if has_start:
         return PreflightResult(action="start", prompt=all_content, scripts=results)

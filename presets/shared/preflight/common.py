@@ -123,7 +123,7 @@ def is_bot_author(author):
     return "[bot]" in a or a.endswith("-bot") or a in ("github-actions", "dependabot", "renovate")
 
 
-def fmt_comments(comments, label, since=None):
+def fmt_comments(comments, label, since=None, max_comments=30):
     """Format a list of comments, optionally filtering by timestamp."""
     if not comments:
         return f"  {label}: (none)"
@@ -133,6 +133,9 @@ def fmt_comments(comments, label, since=None):
     if not comments:
         return f"  {label}: (none since last_addressed)"
     comments = list(reversed(comments))
+    truncated = len(comments) > max_comments
+    if truncated:
+        comments = comments[:max_comments]
     lines = [f"  {label} ({len(comments)}, newest first):"]
     for c in comments:
         author = c.get(
@@ -144,6 +147,8 @@ def fmt_comments(comments, label, since=None):
         lines.append(f"    [{t}] {author}:")
         for bl in body.strip().split("\n"):
             lines.append(f"      {bl}")
+    if truncated:
+        lines.append(f"    ... truncated (showing {max_comments} of latest, use Jira for full history)")
     return "\n".join(lines)
 
 

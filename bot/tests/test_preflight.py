@@ -220,20 +220,33 @@ def test_aggregate_mixed_start_skip():
     assert "nothing" in r.prompt
 
 
-def test_aggregate_error_blocks_start():
+def test_aggregate_error_excluded_start_wins():
     results = [
         ScriptResult("a.py", "start", "work found"),
         ScriptResult("b.py", "error", "boom"),
     ]
     r = _aggregate(results)
-    assert r.action == "error"
-    assert "boom" in r.transcript
+    assert r.action == "start"
+    assert "work found" in r.prompt
+    assert "PREFLIGHT ERROR" in r.prompt
+    assert "boom" in r.prompt
 
 
-def test_aggregate_error_only():
+def test_aggregate_error_excluded_skip_wins():
+    results = [
+        ScriptResult("a.py", "skip", "nothing"),
+        ScriptResult("b.py", "error", "boom"),
+    ]
+    r = _aggregate(results)
+    assert r.action == "skip"
+    assert "PREFLIGHT ERROR" in r.transcript
+
+
+def test_aggregate_all_error():
     results = [ScriptResult("a.py", "error", "crash")]
     r = _aggregate(results)
     assert r.action == "error"
+    assert "crash" in r.transcript
 
 
 # --- run_preflight ---
