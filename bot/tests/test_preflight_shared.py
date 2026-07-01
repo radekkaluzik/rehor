@@ -190,6 +190,51 @@ def test_classify_gh_review_comment():
     assert any("review_comment" in i for i in issues)
 
 
+def test_review_comment_not_unconditional_feedback():
+    """review_comment: should NOT trigger unconditional feedback bucketing.
+
+    It must fall through to has_new_feedback() which checks timestamps and bot authors.
+    """
+    issues = ["review_comment:coderabbitai[bot]"]
+    unconditional = any(i in ("changes_requested",) or i.startswith("review:") for i in issues)
+    assert unconditional is False, "review_comment: must not match unconditional feedback check"
+
+
+def test_review_comment_bot_old_is_clean():
+    """PR with only an old bot review_comment should be CLEAN, not FEEDBACK."""
+    enriched = {
+        "task": {"last_addressed": "2026-07-01T10:00"},
+        "issues": ["review_comment:coderabbitai[bot]"],
+        "pr_comments": [{"a": "coderabbitai[bot]", "t": "2026-07-01T08:00", "b": "auto review"}],
+        "prs": [],
+    }
+    issues = enriched["issues"]
+    unconditional = any(i in ("changes_requested",) or i.startswith("review:") for i in issues)
+    assert unconditional is False
+    assert has_new_feedback(enriched) is False
+
+
+def test_review_comment_human_new_is_feedback():
+    """PR with a new human review_comment should be FEEDBACK via has_new_feedback."""
+    enriched = {
+        "task": {"last_addressed": "2026-06-30T10:00"},
+        "issues": ["review_comment:reviewer"],
+        "pr_comments": [{"a": "reviewer", "t": "2026-07-01T10:00", "b": "please fix this"}],
+        "prs": [],
+    }
+    issues = enriched["issues"]
+    unconditional = any(i in ("changes_requested",) or i.startswith("review:") for i in issues)
+    assert unconditional is False
+    assert has_new_feedback(enriched) is True
+
+
+def test_changes_requested_still_unconditional():
+    """changes_requested and review: should still be unconditional feedback."""
+    for issue in ["changes_requested", "review:someuser"]:
+        unconditional = any(i in ("changes_requested",) or i.startswith("review:") for i in [issue])
+        assert unconditional is True, f"{issue} should be unconditional feedback"
+
+
 # --- classify_gl ---
 
 

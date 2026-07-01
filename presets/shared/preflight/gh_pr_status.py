@@ -207,9 +207,7 @@ def main():
             ci_fail.append(e)
         elif "conflict" in issues:
             conflict.append(e)
-        elif any(
-            i in ("changes_requested",) or i.startswith("review:") or i.startswith("review_comment:") for i in issues
-        ):
+        elif any(i in ("changes_requested",) or i.startswith("review:") for i in issues):
             feedback.append(e)
         elif has_new_feedback(e):
             feedback.append(e)
