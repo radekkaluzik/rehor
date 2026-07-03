@@ -277,6 +277,79 @@ def test_at_capacity_no_investigations_returns_skip(env_vars, monkeypatch, capsy
     assert "capacity" in out["content"].lower()
 
 
+def test_candidates_without_repo_labels_returns_skip(env_vars, monkeypatch, capsys):
+    """Candidates exist but none have repo: labels → skip (the RHCLOUD-48805 fix)."""
+    tasks = _mock_tasks()
+    candidates = [
+        {
+            "key": "RHCLOUD-48805",
+            "summary": "No repo label ticket",
+            "status": "New",
+            "priority": "Major",
+            "type": "Story",
+            "labels": ["hcc-ai-framework"],
+            "repos": [],
+            "description": "Missing repo label",
+            "comments": [],
+            "links": [],
+        }
+    ]
+    monkeypatch.setattr("jira_sprint_preflight.get_tasks", lambda: tasks)
+    monkeypatch.setattr("jira_sprint_preflight.get_capacity", lambda: (0, 10))
+    monkeypatch.setattr("jira_sprint_preflight.load_project_repos", lambda: {})
+    monkeypatch.setattr("jira_sprint_preflight.build_repo_lookup", lambda x: {})
+    monkeypatch.setattr("jira_sprint_preflight._get_candidates", lambda rl: candidates)
+    monkeypatch.setattr("jira_sprint_preflight.jira_cleanup", lambda: None)
+
+    main()
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["status"] == "skip"
+    assert "lack repo: labels" in out["content"]
+
+
+def test_mixed_candidates_only_starts_with_repos(env_vars, monkeypatch, capsys):
+    """Mix of candidates with and without repos → start, but only shows those with repos."""
+    tasks = _mock_tasks()
+    candidates = [
+        {
+            "key": "TEST-10",
+            "summary": "Has repo",
+            "status": "New",
+            "priority": "High",
+            "type": "Bug",
+            "labels": ["hcc-ai-test", "repo:my-repo"],
+            "repos": ["my-repo"],
+            "description": "Fix it",
+            "comments": [],
+            "links": [],
+        },
+        {
+            "key": "TEST-11",
+            "summary": "No repo",
+            "status": "New",
+            "priority": "Major",
+            "type": "Story",
+            "labels": ["hcc-ai-test"],
+            "repos": [],
+            "description": "Missing label",
+            "comments": [],
+            "links": [],
+        },
+    ]
+    monkeypatch.setattr("jira_sprint_preflight.get_tasks", lambda: tasks)
+    monkeypatch.setattr("jira_sprint_preflight.get_capacity", lambda: (0, 10))
+    monkeypatch.setattr("jira_sprint_preflight.load_project_repos", lambda: {})
+    monkeypatch.setattr("jira_sprint_preflight.build_repo_lookup", lambda x: {})
+    monkeypatch.setattr("jira_sprint_preflight._get_candidates", lambda rl: candidates)
+    monkeypatch.setattr("jira_sprint_preflight.jira_cleanup", lambda: None)
+
+    main()
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["status"] == "start"
+    assert "TEST-10" in out["content"]
+    assert "1 with matching repos, 1 without" in out["content"]
+
+
 def test_missing_instance_id_returns_error(monkeypatch, capsys):
     monkeypatch.setattr("jira_sprint_preflight.INSTANCE_ID", "")
 
