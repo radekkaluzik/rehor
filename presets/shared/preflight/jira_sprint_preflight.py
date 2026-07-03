@@ -348,23 +348,28 @@ def main():
     candidates = _get_candidates(repo_lookup)
     jira_cleanup()
 
-    if not candidates:
-        lines.append("No eligible work candidates in sprint/backlog")
+    with_repos = [c for c in candidates if c["repos"]]
+    without_repos = [c for c in candidates if not c["repos"]]
+
+    if not with_repos:
+        if without_repos:
+            lines.append(f"No eligible work — {len(without_repos)} candidate(s) lack repo: labels")
+            for c in without_repos:
+                lines.append(f"  {c['key']}: {c['summary']} (no repo: label)")
+        else:
+            lines.append("No eligible work candidates in sprint/backlog")
         save_state({"jira": {"feedback": 0, "interrupted": 0}})
         output_result("skip", "\n".join(lines))
         return
 
-    lines.append(f"### New Work Candidates ({len(candidates)})")
+    lines.append(f"### New Work Candidates ({len(with_repos)})")
     lines.append("")
-    for c in candidates:
+    for c in with_repos:
         lines.append(_fmt_candidate(c))
         lines.append("")
 
-    with_repos = [c for c in candidates if c["repos"]]
-    without_repos = [c for c in candidates if not c["repos"]]
     lines.append(f"-> {len(with_repos)} with matching repos, {len(without_repos)} without")
-    if with_repos:
-        lines.append(f"-> Top pick: {with_repos[0]['key']} repos={','.join(with_repos[0]['repos'])}")
+    lines.append(f"-> Top pick: {with_repos[0]['key']} repos={','.join(with_repos[0]['repos'])}")
 
     save_state({"jira": {"feedback": 0, "interrupted": 0}})
     output_result("start", "\n".join(lines))
