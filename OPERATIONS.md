@@ -27,8 +27,8 @@ The memory server dashboard at `http://localhost:8080` shows:
 
 ```bash
 make logs           # Tail bot.log
-docker compose logs -f bot          # Docker container logs
-docker compose logs -f memory-server  # Memory server logs
+podman compose logs -f bot          # Container logs
+podman compose logs -f memory-server  # Memory server logs
 ```
 
 ## Ticket Lifecycle
@@ -272,18 +272,6 @@ make run LABEL=hcc-ai-framework
 # Terminal 2
 make run-rbac
 ```
-
-### In Docker
-
-```bash
-# Start with default label
-make docker-up
-
-# Start with a different label
-BOT_LABEL=hcc-ai-platform-accessmanagement make docker-up
-```
-
-For multiple labels in Docker simultaneously, you'd run separate compose projects or add multiple bot services to `docker-compose.yml`.
 
 ## Cost Management
 

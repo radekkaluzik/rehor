@@ -21,13 +21,13 @@ Before setting up the bot, make sure you have the following installed:
 |------------|---------|---------|
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | Agent runtime (bundled with the SDK) | `npm install -g @anthropic-ai/claude-code` |
 | [uv](https://docs.astral.sh/uv/) | Python package manager | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| [Docker](https://docs.docker.com/get-docker/) + Docker Compose | Memory server, target repo dev environments | Install Docker Desktop |
+| [Podman](https://podman.io/) or Docker | Memory server, target repo dev environments | `brew install podman` or install Docker |
 | [Node.js](https://nodejs.org/) + npm | TypeScript LSP server | `brew install node` or via nvm |
 | [jq](https://jqlang.github.io/jq/) | JSON processing | `brew install jq` |
 | [gh](https://cli.github.com/) | GitHub CLI | `brew install gh` then `gh auth login` |
 | [glab](https://gitlab.com/gitlab-org/cli) | GitLab CLI (only for GitLab repos) | `brew install glab` then `glab auth login --hostname gitlab.cee.redhat.com` |
 
-The bot also uses the [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) MCP server for Jira integration — it runs inside the proxy container in Docker mode (see [Architecture](#architecture-credential-isolation)).
+The bot also uses the [mcp-atlassian](https://github.com/sooperset/mcp-atlassian) MCP server for Jira integration — it runs inside the proxy container (see [Architecture](#architecture-credential-isolation)).
 
 ### Authentication
 
@@ -81,8 +81,6 @@ make stop              # Stop a running bot (release lock)
 make logs              # Tail bot log
 make memory-server     # Start memory server + postgres (standalone)
 make memory-server-stop # Stop standalone memory server
-make docker-up         # Start full stack in Docker (postgres + memory server + bot)
-make docker-down       # Stop full stack
 make dashboard         # Build the dashboard UI
 make costs             # Show all cost data
 make costs-today       # Show today's costs
@@ -235,49 +233,13 @@ docker build -f dev-bot/Dockerfile.runner -t my-bot-instance:local .
 
 To update to the latest dev-bot: `git submodule update --remote dev-bot`
 
-### Local development with docker-compose
-
-To test a runner image in docker-compose, create a `docker-compose.override.yml` (gitignored):
-
-```yaml
-services:
-  bot:
-    image: my-bot-instance:local
-    build: !reset null
-```
-
 ## Running the services
 
 ### Option A: OpenShift (recommended)
 
 The production deployment. Bot, proxy, and memory server run as separate pods with full credential isolation and network policies. See `deploy/template.yaml` and `OPERATIONS.md` for details.
 
-### Option B: Full stack in Docker
-
-For local development — everything runs in containers with credential isolation (see [Architecture](#architecture-credential-isolation)):
-
-```bash
-# Set secrets (or add to .env — see SOP.md for details)
-# CLI tokens + GPG key + SA key + Jira creds → proxy container (credential isolation)
-export GH_TOKEN=<your-pat>
-export GITLAB_TOKEN=<your-gitlab-pat>
-export GPG_PRIVATE_KEY_B64=$(base64 -i .ssh/gpg-private.asc)
-export GOOGLE_SA_KEY_B64=$(base64 < sa-key.json)
-export VERTEX_ALLOWED_MODELS=claude-sonnet-4-6,claude-opus-4-6,claude-haiku-4-5
-
-# Start everything
-make docker-up
-
-# Override the bot label
-BOT_LABEL=hcc-ai-platform-accessmanagement make docker-up
-
-# Stop
-make docker-down
-```
-
-All secrets (`GH_TOKEN`, `GITLAB_TOKEN`, `GPG_PRIVATE_KEY_B64`, `GOOGLE_SA_KEY_B64`, `JIRA_API_TOKEN`) are injected into the **proxy container**, not the bot. The bot uses thin client shims that forward CLI commands to the proxy over gRPC, the Vertex AI auth proxy (port 8443) injects OAuth2 tokens transparently, and the Jira MCP server (mcp-atlassian) runs in the proxy on port 8444. See [Architecture](#architecture-credential-isolation).
-
-### Option C: Bot on host (advanced)
+### Option B: Bot on host (advanced)
 
 Running the bot directly on your machine bypasses the security harness (proxy-based credential isolation, Squid allowlist, bash hooks enforcement). This mode requires manual setup of git identity, GPG signing, and CLI auth, and is not recommended for production use.
 
@@ -294,7 +256,7 @@ make run LABEL=hcc-ai-framework
 
 ### Memory server + dashboard
 
-The memory server runs as Docker containers (PostgreSQL with pgvector + Python app). `make init` starts it automatically.
+The memory server runs as containers (PostgreSQL with pgvector + Python app). `make init` starts it automatically.
 
 ```bash
 make memory-server              # Start
@@ -340,7 +302,7 @@ Personas provide domain-specific guidelines for different repo types. They live 
 |---------|-------|
 | `frontend` | React/TypeScript/PatternFly repos. Visual verification, `npm run lint/test`. |
 | `backend` | Go and Node.js backend services. |
-| `rbac` | Django/DRF RBAC service (insights-rbac). Docker Compose dev env, `make unittest-fast`. |
+| `rbac` | Django/DRF RBAC service (insights-rbac). Container-based dev env, `make unittest-fast`. |
 | `operator` | Kubernetes operators (Go). |
 | `config` | Config repos (app-interface). Read-only or GitLab MR workflow. |
 | `cve` | CVE remediation — dependency upgrades, base image updates, security scanning. |
@@ -470,8 +432,6 @@ The `dev-proxy/` directory contains a custom Caddy build for local UI verificati
 ### Deployment
 
 - **OpenShift**: Bot and proxy run as separate pods connected via ClusterIP Service. A `NetworkPolicy` restricts bot egress to the proxy and memory-server pods only.
-- **Docker Compose**: Bot and proxy run as separate containers on an internal network. A shared tmpfs volume provides a Unix Domain Socket for the executor, and docker-compose networking handles TCP communication. Only the proxy container is on the external network.
-
 ## Project structure
 
 ```

@@ -77,7 +77,7 @@ GOOGLE_SA_KEY_B64=<base64-encoded-sa-key>
 VERTEX_ALLOWED_MODELS=claude-sonnet-4-6,claude-opus-4-6,claude-haiku-4-5
 ```
 
-Docker Compose automatically reads `.env` from the project root.
+The compose file automatically reads `.env` from the project root.
 
 For OpenShift, store these as secrets and inject them as env vars into the pod.
 
@@ -99,7 +99,7 @@ Fork URLs in the remote config's `project-repos.json` use HTTPS:
 Build and enter the container:
 
 ```bash
-docker compose run --rm bot
+podman compose run --rm bot
 ```
 
 Run these checks:
