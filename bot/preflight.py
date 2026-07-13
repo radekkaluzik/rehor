@@ -46,7 +46,9 @@ def discover_preflight_scripts(
     """Find preflight scripts from workflow preset + instance config, sorted by name."""
     scripts: list[Path] = []
 
-    workflow_preflight = script_dir / "presets" / "workflows" / workflow / "preflight"
+    from .config import resolve_workflow_dir
+
+    workflow_preflight = resolve_workflow_dir(script_dir, workflow, remote_agent_dir) / "preflight"
     if workflow_preflight.is_dir():
         scripts.extend(sorted(f for f in workflow_preflight.iterdir() if f.suffix == ".py" and f.is_file()))
 

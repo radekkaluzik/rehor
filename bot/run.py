@@ -26,6 +26,7 @@ from .config import (
     load_config,
     load_instance_config,
     load_mcp_servers,
+    resolve_workflow_dir,
     sanitize_env,
     validate_instance_config,
     validate_manifest,
@@ -278,7 +279,7 @@ def assemble_claude_md(
         parts.append(instance_md.read_text())
         logger.info("CLAUDE.md strategy=replace — using instance CLAUDE.md instead of workflow")
     else:
-        wf_path = presets / "workflows" / workflow / "CLAUDE.md"
+        wf_path = resolve_workflow_dir(script_dir, workflow, remote_agent_dir) / "CLAUDE.md"
         if wf_path.is_file():
             parts.append(wf_path.read_text())
         else:
@@ -383,8 +384,8 @@ def main() -> None:
         apply_merged_config(SCRIPT_DIR, initial_agent_dir)
     instance_config = load_instance_config(initial_agent_dir)
 
-    validate_manifest(SCRIPT_DIR, instance_config.workflow, mcp_servers)
-    validate_instance_config(SCRIPT_DIR, instance_config)
+    validate_manifest(SCRIPT_DIR, instance_config.workflow, mcp_servers, initial_agent_dir)
+    validate_instance_config(SCRIPT_DIR, instance_config, initial_agent_dir)
 
     # Remove secrets from env so Bash subprocesses can't leak them.
     # MCP servers already have resolved values. gh/glab use config files.
