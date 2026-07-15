@@ -55,13 +55,24 @@ Create your instance config. This entire directory gets COPYed into the image at
 instance/my-config/
 └── agent/
     ├── instance.yaml         # preset selection (workflow, env presets, CLAUDE.md strategy)
+    ├── CLAUDE.md             # instance-specific instructions (optional, strategy-dependent)
     ├── project-repos.json    # repos this instance works on
     ├── mcp.json              # MCP server overrides (usually just Jira)
-    └── personas/             # domain-specific guidelines
-        ├── frontend/
-        │   └── prompt.md
-        └── ...
+    ├── personas/             # domain-specific guidelines
+    │   ├── frontend/
+    │   │   └── prompt.md
+    │   └── ...
+    ├── preflight/            # instance-specific preflight scripts (optional)
+    │   └── 01-check-something.py
+    └── workflows/            # custom workflows (optional, if not using a built-in)
+        └── my-workflow/
+            ├── CLAUDE.md
+            ├── manifest.yaml
+            └── preflight/
+                └── 01-check.py
 ```
+
+Instance-level `preflight/` scripts run alongside the workflow's preflight scripts — use them for checks specific to your instance. Custom `workflows/` are referenced via `workflow: ./workflows/<name>` in `instance.yaml`. See [Creating Custom Workflows](presets/custom-workflows.md) and [Writing Custom Preflight Scripts](presets/custom-preflight.md) for details.
 
 #### `instance.yaml`
 
@@ -78,20 +89,26 @@ envs:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `workflow` | string | `jira-sprint` | Which workflow preset to use. Must exist in `presets/workflows/`. |
-| `source` | string | `jira` | Ticket source. Currently: `jira`. Future: `github`, `gitlab`. |
+| `workflow` | string | `jira-sprint` | Workflow preset name (built-in) or `./path` (custom). See below. |
+| `source` | string | `jira` | Ticket source. `jira` = Jira sprint polling. `scheduled` = time-based. |
 | `envs` | list or null | `null` (all) | Env presets to activate. `null`/omitted = all available. `[]` = none. |
 | `claude_md.strategy` | string | `ignore` | How to handle instance CLAUDE.md: `ignore`, `append`, `replace`. |
 
-Available env presets:
-- `browser` — Chromium + chrome-devtools MCP for visual verification (requires `PLAYWRIGHT_BROWSERS_PATH`, set automatically)
-- `container-scan` — Grype + Buildah for CVE scanning
-- `slack` — Slack notifications via webhook (requires `SLACK_WEBHOOK_URL`)
-- `dev-proxy` — Caddy reverse proxy for stage UI verification (requires `PROXY_HOST`)
+**Workflows:** The built-in `jira-sprint` workflow handles the full autonomous development loop (triage → implement → PR → maintain). For specialized use cases — monitoring, review-only, scheduled tasks — you can create custom workflows in your instance config repo using `workflow: ./workflows/<name>`. See [Creating Custom Workflows](presets/custom-workflows.md) for the full guide.
 
-List only the presets your instance actually needs. Omitting unused ones saves container startup time and avoids unnecessary env var requirements.
+**Env presets** add tools and runtimes to the bot image. List only what your instance needs — unused presets waste build time and image size.
 
-For the full preset system reference, see [preset-migration-guide.md](migrations/preset-migration-guide.md).
+| Preset | What it provides |
+|--------|-----------------|
+| `node` | nvm + Node.js 22 LTS + npm/npx |
+| `go` | goenv + Go 1.24/1.25 + golangci-lint |
+| `patternfly-mcp` | PatternFly component guidance MCP server (requires `node`) |
+| `browser` | Chromium + chrome-devtools MCP for visual verification |
+| `container-scan` | Grype + Buildah for CVE scanning |
+| `dev-proxy` | Caddy reverse proxy for stage UI verification |
+| `slack` | Slack notifications via webhook |
+
+For the full preset system reference, see the [Presets overview](presets/README.md), [env presets](presets/envs.md), and [workflow presets](presets/workflows.md).
 
 #### `project-repos.json`
 
@@ -532,3 +549,16 @@ If someone renames the Jira board, `claim-ticket` breaks. Consider using `BOT_BO
 
 ### Memory server is shared
 All bot instances share one memory server. Task isolation is via `instance_id` — always pass it in task tool calls. Memories (learnings) are shared across instances, which is intentional.
+
+---
+
+## Related Docs
+
+- [Presets overview](presets/README.md) — how all preset types work together
+- [Workflow presets](presets/workflows.md) — built-in workflow reference
+- [Env presets](presets/envs.md) — available env presets for tools and runtimes
+- [Creating custom workflows](presets/custom-workflows.md) — guide to building your own workflow
+- [Writing custom preflight scripts](presets/custom-preflight.md) — pre-session data-gathering scripts
+- [Scheduling guide](scheduling.md) — KEDA cron scaler configuration
+- [Presets design doc](presets-design.md) — architecture decisions and rationale
+- [Roadmap](roadmap.md) — planned improvements
