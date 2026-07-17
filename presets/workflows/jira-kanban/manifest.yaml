@@ -1,0 +1,35 @@
+name: jira-kanban
+type: workflow
+description: Jira kanban workflow — project-based pull, no sprint management
+
+preflight:
+  - 01-gh-pr-status.py
+  - 02-gl-mr-status.py
+  - 03-jira-kanban.py
+
+shared_skills:
+  - push-and-pr
+  - post-pr
+  - auto-fork
+
+provides:
+  claude_md: CLAUDE.md
+  skills:
+    - triage
+    - new-work
+    - claim-ticket
+    - wrap-up
+
+requires:
+  mcp_servers:
+    - bot-memory
+    - mcp-atlassian
+  env_vars:
+    - BOT_JIRA_PROJECT
+    - BOT_INSTANCE_ID
+    - BOT_JIRA_EMAIL
+  optional_env_vars:
+    - BOT_CONFIG_REPO
+    - BOT_KANBAN_STATUSES
+    - BOT_KANBAN_JQL_EXTRA
+    - SLACK_WEBHOOK_URL
