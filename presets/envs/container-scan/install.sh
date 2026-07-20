@@ -1,5 +1,5 @@
 #!/bin/bash
-# Container-scan env preset — grype + buildah + rootless config
+# Container-scan env preset — grype + buildah
 set -e
 
 # Grype (vulnerability scanner)
@@ -9,13 +9,6 @@ curl -fsSL "https://github.com/anchore/grype/releases/download/v0.87.0/grype_0.8
 
 # Buildah (rootless container builder)
 dnf install -y --nodocs buildah fuse-overlayfs && dnf clean all
-
-# Buildah rootless config — vfs driver (no kernel module needed, works everywhere)
-BOTUSER_HOME="${BOTUSER_HOME:-/home/botuser}"
-mkdir -p "$BOTUSER_HOME/.config/containers" "$BOTUSER_HOME/.local/share/containers"
-echo -e '[storage]\ndriver = "vfs"' > "$BOTUSER_HOME/.config/containers/storage.conf"
-echo -e '[registries.search]\nregistries = ["registry.access.redhat.com", "quay.io", "docker.io"]' \
-    > "$BOTUSER_HOME/.config/containers/registries.conf"
 
 # BUILDAH_ISOLATION for all shells
 cat > /etc/profile.d/buildah.sh << 'PROFILE'
