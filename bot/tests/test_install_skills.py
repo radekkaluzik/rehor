@@ -98,9 +98,7 @@ class TestInstallSkills:
         shared_dir = skill_env / "presets" / "shared" / "skills"
         _make_skill(shared_dir, "claim-ticket", "shared version")
 
-        wf_dir = _make_workflow(
-            skill_env, "test-wf", shared_skills=["claim-ticket"], provides_skills=["claim-ticket"]
-        )
+        wf_dir = _make_workflow(skill_env, "test-wf", shared_skills=["claim-ticket"], provides_skills=["claim-ticket"])
         _make_skill(wf_dir / "skills", "claim-ticket", "workflow version")
 
         install_skills(skill_env, wf_dir, [])
