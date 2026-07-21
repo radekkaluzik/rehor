@@ -98,10 +98,13 @@ class TestSyncConfigRepoSharedDiscovery:
 
     def test_returns_both_dirs_when_shared_exists(self, config_repo):
         run_mod = _import_run()
-        with patch.dict(os.environ, {
-            "BOT_CONFIG_REPO": "https://example.com/config.git",
-            "BOT_CONFIG_PATH": "internal",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "BOT_CONFIG_REPO": "https://example.com/config.git",
+                "BOT_CONFIG_PATH": "internal",
+            },
+        ):
             with patch.object(run_mod, "REMOTE_CONFIG_DIR", config_repo):
                 profile_dir, shared_dir = run_mod.sync_config_repo()
 
@@ -112,10 +115,13 @@ class TestSyncConfigRepoSharedDiscovery:
 
     def test_returns_none_shared_when_no_shared_dir(self, single_profile_repo):
         run_mod = _import_run()
-        with patch.dict(os.environ, {
-            "BOT_CONFIG_REPO": "https://example.com/config.git",
-            "BOT_CONFIG_PATH": "my-config",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "BOT_CONFIG_REPO": "https://example.com/config.git",
+                "BOT_CONFIG_PATH": "my-config",
+            },
+        ):
             with patch.object(run_mod, "REMOTE_CONFIG_DIR", single_profile_repo):
                 profile_dir, shared_dir = run_mod.sync_config_repo()
 
@@ -133,10 +139,13 @@ class TestSyncConfigRepoSharedDiscovery:
 
     def test_returns_none_tuple_when_profile_missing(self, config_repo):
         run_mod = _import_run()
-        with patch.dict(os.environ, {
-            "BOT_CONFIG_REPO": "https://example.com/config.git",
-            "BOT_CONFIG_PATH": "nonexistent",
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "BOT_CONFIG_REPO": "https://example.com/config.git",
+                "BOT_CONFIG_PATH": "nonexistent",
+            },
+        ):
             with patch.object(run_mod, "REMOTE_CONFIG_DIR", config_repo):
                 profile_dir, shared_dir = run_mod.sync_config_repo()
 
