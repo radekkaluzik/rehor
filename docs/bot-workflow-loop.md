@@ -147,7 +147,7 @@ These three checks prevent the bot from creating duplicate work or exceeding cap
 ```python
 from common import get_tasks, get_capacity, output_result
 
-TASK_KEY_PREFIX = "my-workflow:"    # unique to your workflow
+TASK_KEY_PREFIX = "my-workflow:"  # unique to your workflow
 
 tasks = get_tasks()
 active_n, max_n = get_capacity()
@@ -177,12 +177,17 @@ if len(prs) < 2:
     output_result("skip", f"Only {len(prs)} PRs, need ≥2")
     return
 
-output_result("start", json.dumps({
-    "repo": upstream_repo,
-    "pr_count": len(prs),
-    "prs": pr_summary,
-    "task_key": f"{TASK_KEY_PREFIX}{upstream_repo}",  # pre-computed for the agent
-}))
+output_result(
+    "start",
+    json.dumps(
+        {
+            "repo": upstream_repo,
+            "pr_count": len(prs),
+            "prs": pr_summary,
+            "task_key": f"{TASK_KEY_PREFIX}{upstream_repo}",  # pre-computed for the agent
+        }
+    ),
+)
 ```
 
 Key points:

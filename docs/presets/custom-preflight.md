@@ -276,6 +276,7 @@ from common import load_project_repos, upstream_repo, get_tasks, get_capacity, o
 
 TASK_KEY_PREFIX = "my-workflow:"
 
+
 def main():
     tasks = get_tasks()
     active_n, max_n = get_capacity()
@@ -335,7 +336,9 @@ def fetch_data():
     try:
         proc = subprocess.run(
             [sys.executable, "path/to/fetch_script.py"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         if proc.returncode != 0 or not proc.stdout.strip():
             return None
@@ -368,8 +371,7 @@ def main():
 
     if not has_issues:
         json.dump(
-            {"status": "skip",
-             "content": f"All {len(healthy)} items healthy. Skipping."},
+            {"status": "skip", "content": f"All {len(healthy)} items healthy. Skipping."},
             sys.stdout,
         )
         return
